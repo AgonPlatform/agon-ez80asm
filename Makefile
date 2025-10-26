@@ -1,6 +1,5 @@
 PROJECTNAME=ez80asm
 ARCHITECTURE=linux_elf_x86_64
-BUILD_WINDOWS=false
 # Tools and arguments
 MSBUILD='/mnt/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe' 
 MSBUILDFLAGS=/property:Configuration=Release
@@ -30,13 +29,9 @@ linux: $(BINDIR) $(OBJDIR) $(BIN) $(RELEASEDIR)
 	@tar -zcvf $(RELEASEDIR)/$(PROJECTNAME)_$(ARCHITECTURE).gz $(BINDIR)/$(PROJECTNAME) 2>/dev/null
 
 windows: $(RELEASEDIR)
-ifeq ($(BUILD_WINDOWS), true)
 	@$(MSBUILD) $(VSPROJECTDIR)/$(PROJECTNAME).sln $(MSBUILDFLAGS)
 	@echo === Creating release binary
 	@cp $(VSPROJECTBINDIR)/$(PROJECTNAME).exe $(RELEASEDIR)/	
-else
-	@echo === Windows build disabled in makefile
-endif
 
 agon: $(RELEASEDIR)
 	@echo === Compiling Agon target
@@ -74,7 +69,7 @@ $(RELEASEDIR):
 clean:
 	@echo Cleaning directories
 	@find tests -name "*.output" -type f -delete
-ifeq ($(BUILD_WINDOWS), true)
+ifeq ($@,windows)
 	@$(MSBUILD) $(VSPROJECTDIR)/$(PROJECTNAME).sln $(MSBUILDFLAGS) -t:Clean >/dev/null
 endif
 ifdef OS

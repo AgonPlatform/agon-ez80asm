@@ -69,3 +69,6 @@ tests/*.bin
 
 # vi swap files
 *.swp
+
+# MacOS
+.DS_Store
