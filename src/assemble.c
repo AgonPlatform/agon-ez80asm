@@ -805,6 +805,7 @@ void handle_asm_include(void) {
         error(message[ERROR_RECURSIVEINCLUDE],0);
         return;
     }
+    definelabel(address);
     if((listing) && (pass == ENDPASS)) listEndLine();
     processContent(token.start+1);
     sourcefilecount++;
@@ -836,6 +837,8 @@ void handle_asm_incbin(void) {
         return;
     }
     token.start[strlen(token.start)-1] = 0;
+
+    definelabel(address);
 
     // Prepare content
     if((ci = findContent(token.start+1)) == NULL) {
