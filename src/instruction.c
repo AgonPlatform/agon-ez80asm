@@ -106,7 +106,11 @@ void transform_instruction(operand_t *op, uint8_t type) {
         case TRANSFORM_REL:
             if(pass == ENDPASS) {
                 // label still potentially unknown in pass 1, so output the existing '0' in pass 1
-                rel = op->immediate - address - 2;
+                if(relocate) {
+                   rel = op->immediate - (relocateBaseAddress + (address - relocateOutputBaseAddress)) - 2;
+                } else {
+                   rel = op->immediate - address - 2;
+                }
                 if((rel > 127) || (rel < -128)) {
                     error(message[ERROR_RELATIVEJUMPTOOLARGE],0);
                }

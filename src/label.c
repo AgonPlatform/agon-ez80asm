@@ -249,7 +249,6 @@ void definelabel(uint24_t num){
         }
 
         if(relocate) num = relocateBaseAddress + (num - relocateOutputBaseAddress);
-        
         if(currentline.label[0] == '@') {
             if(currentline.label[1] == '@') {
                 if(currentExpandedMacro) {

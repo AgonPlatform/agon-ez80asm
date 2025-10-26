@@ -1,6 +1,6 @@
 PROJECTNAME=ez80asm
 ARCHITECTURE=linux_elf_x86_64
-BUILD_WINDOWS=true
+BUILD_WINDOWS=false
 # Tools and arguments
 MSBUILD='/mnt/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe' 
 MSBUILDFLAGS=/property:Configuration=Release
