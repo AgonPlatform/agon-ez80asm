@@ -1,5 +1,7 @@
 PROJECTNAME=ez80asm
-ARCHITECTURE=linux_elf_x86_64
+# Environment
+OS_NAME = $(shell uname -s | tr A-Z a-z)
+ARCH = $(shell uname -m | tr A-Z a-z)
 # Tools and arguments
 MSBUILD='/mnt/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe' 
 MSBUILDFLAGS=/property:Configuration=Release
@@ -26,7 +28,7 @@ BIN=$(BINDIR)/$(PROJECTNAME)
 
 linux: $(BINDIR) $(OBJDIR) $(BIN) $(RELEASEDIR)
 	@echo === Creating release binary
-	@tar -zcvf $(RELEASEDIR)/$(PROJECTNAME)_$(ARCHITECTURE).gz $(BINDIR)/$(PROJECTNAME) 2>/dev/null
+	@tar -zcvf $(RELEASEDIR)/$(PROJECTNAME)-$(OS_NAME)_$(ARCH)tar.gz $(BINDIR)/$(PROJECTNAME) 2>/dev/null
 
 windows: $(RELEASEDIR)
 	@$(MSBUILD) $(VSPROJECTDIR)/$(PROJECTNAME).sln $(MSBUILDFLAGS)
