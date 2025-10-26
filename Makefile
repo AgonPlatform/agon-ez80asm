@@ -6,10 +6,8 @@ MSBUILD='/mnt/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Cur
 MSBUILDFLAGS=/property:Configuration=Release
 CC=gcc
 LFLAGS=-g -Wall -DUNIX
-CFLAGS=$(LFLAGS) -c -fno-common
+CFLAGS=$(LFLAGS) -c -fno-common -static -Wall -O2 -DNDEBUG -Wno-unused-result -c
 OUTFLAG=-o 
-RELEASE_LFLAGS=-s -static -Wall -O2 -DNDEBUG -DUNIX -Wno-unused-result
-RELEASE_CFLAGS=$(RELEASE_LFLAGS) -c
 .DEFAULT_GOAL := linux
 
 # project directories
@@ -17,7 +15,7 @@ SRCDIR=src
 OBJDIR=obj
 BINDIR=bin
 LOADERDIR=mosloader
-RELEASEDIR=releases
+RELEASEDIR=release
 VSPROJECTDIR=$(SRCDIR)/vsproject
 VSPROJECTBINDIR=$(VSPROJECTDIR)/x64/Release
 # Automatically get all sourcefiles
@@ -27,27 +25,25 @@ OBJS=$(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(SRCS))
 # Target project binary
 BIN=$(BINDIR)/$(PROJECTNAME)
 
-# Default rule
-all: linux agon windows
+linux: $(BINDIR) $(OBJDIR) $(BIN) $(RELEASEDIR)
+	@echo === Creating release binary
+	@tar -zcvf $(RELEASEDIR)/$(PROJECTNAME)_$(ARCHITECTURE).gz $(BINDIR)/$(PROJECTNAME) 2>/dev/null
 
-linux: $(BINDIR) $(OBJDIR) $(BIN)
-
-windows:
+windows: $(RELEASEDIR)
 ifeq ($(BUILD_WINDOWS), true)
 	@$(MSBUILD) $(VSPROJECTDIR)/$(PROJECTNAME).sln $(MSBUILDFLAGS)
+	@echo === Creating release binary
+	@cp $(VSPROJECTBINDIR)/$(PROJECTNAME).exe $(RELEASEDIR)/	
 else
 	@echo === Windows build disabled in makefile
 endif
-agon:
+
+agon: $(RELEASEDIR)
 	@echo === Compiling Agon target
 	@make --file=Makefile-agon --no-print-directory
 
-# Release with optimal settings for release target
-release: CFLAGS=$(RELEASE_CFLAGS)
-release: LFLAGS=$(RELEASE_LFLAGS)
-release: all
-release: $(RELEASEDIR)
-release: package
+	@echo === Creating release binary
+	@cp $(BINDIR)/$(PROJECTNAME).bin $(RELEASEDIR)/$(PROJECTNAME).bin
 
 # Linking all compiled objects into final binary
 $(BIN):$(OBJS)
@@ -67,21 +63,14 @@ else
 endif
 
 $(BINDIR):
-	mkdir $(BINDIR)
+	@mkdir $(BINDIR)
 
 $(OBJDIR):
-	mkdir $(OBJDIR)
+	@mkdir $(OBJDIR)
 
 $(RELEASEDIR):
-	mkdir $(RELEASEDIR)
+	@mkdir $(RELEASEDIR)
 
-package:
-	@echo === Packaging binaries
-	@tar -zcvf $(RELEASEDIR)/$(PROJECTNAME)_$(ARCHITECTURE).gz $(BINDIR)/$(PROJECTNAME)
-	@cp $(BINDIR)/$(PROJECTNAME).bin $(RELEASEDIR)/$(PROJECTNAME).bin
-ifeq ($(BUILD_WINDOWS), true)
-	@cp $(VSPROJECTBINDIR)/$(PROJECTNAME).exe $(RELEASEDIR)/	
-endif
 clean:
 	@echo Cleaning directories
 	@find tests -name "*.output" -type f -delete

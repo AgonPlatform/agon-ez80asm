@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "globals.h"
 
-#ifndef CEDEV
+#ifndef AGONDEV
 
 void vdp_set_text_colour( int colour ) {
 

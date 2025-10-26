@@ -100,7 +100,7 @@ macro_t *storeMacro(const char *name, char *buffer, uint8_t argcount, const char
 
     // Collision on index, place at end of linked list if unique
     while(true) {
-        if(fast_strcasecmp(try->name, name) == 0) {
+        if(strcasecmp(try->name, name) == 0) {
             error(message[ERROR_MACRODEFINED],"%s",name);
             return NULL;
         }
@@ -196,12 +196,12 @@ char * readMacroBody(contentitem_t *ci) {
 
         // skip leading space
         while(*tmp && (isspace(*tmp))) tmp++;
-        if(fast_strncasecmp(tmp, "macro", 5) == 0) {
+        if(strncasecmp(tmp, "macro", 5) == 0) {
             error(message[ERROR_MACROINMACRO],0);
             return NULL;
         }
         uint8_t skipdot = (*tmp == '.')?1:0;
-        if(fast_strncasecmp(tmp+skipdot, "endmacro", 8) == 0) { 
+        if(strncasecmp(tmp+skipdot, "endmacro", 8) == 0) { 
             if(isspace(tmp[8+skipdot]) || (tmp[8+skipdot] == 0) || (tmp[8+skipdot] == ';')) {
                 foundend = true;
                 break;

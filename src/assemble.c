@@ -538,7 +538,7 @@ void parseLine(char *src) {
                         return;
                     case ',':
                         if(argcount == 2) {
-                            if(unknown3rdoperand && ((fast_strcasecmp(currentline.mnemonic, "res") == 0) || (fast_strcasecmp(currentline.mnemonic, "set") == 0))) {
+                            if(unknown3rdoperand && ((strcasecmp(currentline.mnemonic, "res") == 0) || (strcasecmp(currentline.mnemonic, "set") == 0))) {
                                 uint8_t bitnumber = str2num(operand1.immediate_name, strlen(operand1.immediate_name)); // cannot rely on first-pass information which returns 0
                                 // Handle 3rd operand in undocumented Z80 instructions RES0-7/SET0-7
                                 if((!operand1.immediate_provided) || (bitnumber > 7)){
@@ -723,7 +723,7 @@ void handle_asm_adl(void) {
         macroExpandArg(macro_expansionbuffer, token.start, currentExpandedMacro);
         token.start = macro_expansionbuffer;
     }
-    if(fast_strcasecmp(token.start, "adl")) {
+    if(strcasecmp(token.start, "adl")) {
         error(message[ERROR_INVALIDOPERAND],0);
         return;
     }
@@ -1029,17 +1029,17 @@ void handle_asm_cpu(void) {
         error(message[ERROR_MISSINGARGUMENT],0);
         return;
     }
-    if(fast_strcasecmp(token.start, "Z80") == 0) {
+    if(strcasecmp(token.start, "Z80") == 0) {
         cputype = CPU_Z80;
         adlmode = 0;
         return;
     }
-    if(fast_strcasecmp(token.start, "Z180") == 0) {
+    if(strcasecmp(token.start, "Z180") == 0) {
         cputype = CPU_Z180;
         adlmode = 0;
         return;
     }
-    if(fast_strcasecmp(token.start, "EZ80") == 0) {
+    if(strcasecmp(token.start, "EZ80") == 0) {
         cputype = CPU_EZ80;
         adlmode = 1;
         return;

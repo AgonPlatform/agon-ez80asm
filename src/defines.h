@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include "config.h"
 
-#ifndef CEDEV
+#ifndef AGONDEV
 typedef int32_t int24_t;
 typedef uint32_t uint24_t;
 #endif

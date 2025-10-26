@@ -993,7 +993,7 @@ instruction_t * instruction_lookup(const char *name) {
     while(true)
     {
         if(try == NULL) return NULL;
-        if(fast_strcasecmp(try->name, name) == 0) return try;
+        if(strcasecmp(try->name, name) == 0) return try;
         try = try->next;
     }
 }

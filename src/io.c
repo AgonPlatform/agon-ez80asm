@@ -28,8 +28,8 @@ uint24_t _filebuffersize[OUTPUTFILES];        // current fill size of each buffe
 bool     _fileEOF[OUTPUTFILES];
 char     _outputbuffer[OUTPUT_BUFFERSIZE];
 
-#ifdef CEDEV
-    // platform-specific for Agon CEDEV
+#ifdef AGONDEV
+    // platform-specific for Agon AGONDEV
     int remove(const char *filename) {
         return removefile(filename);
     }
@@ -46,7 +46,7 @@ FILE *ioOpenfile(const char *name, const char *mode) {
 uint24_t ioGetfilesize(FILE *fh) {
     uint24_t filesize;
 
-    #ifdef CEDEV
+    #ifdef AGONDEV
         // Use optimal assembly routine in moscalls.asm
         filesize = getfilesize(fh->fhandle);
     #else
