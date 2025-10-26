@@ -6,7 +6,7 @@ MSBUILD='/mnt/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Cur
 MSBUILDFLAGS=/property:Configuration=Release
 CC=gcc
 LFLAGS=-g -Wall -DUNIX
-CFLAGS=$(LFLAGS) -c
+CFLAGS=$(LFLAGS) -c -fno-common
 OUTFLAG=-o 
 RELEASE_LFLAGS=-s -static -Wall -O2 -DNDEBUG -DUNIX -Wno-unused-result
 RELEASE_CFLAGS=$(RELEASE_LFLAGS) -c
