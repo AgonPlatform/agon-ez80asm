@@ -128,7 +128,6 @@
     <ClCompile Include="..\listing.c" />
     <ClCompile Include="..\macro.c" />
     <ClCompile Include="..\main.c" />
-    <ClCompile Include="..\moscalls.c" />
     <ClCompile Include="..\str2num.c" />
     <ClCompile Include="..\utils.c" />
   </ItemGroup>
