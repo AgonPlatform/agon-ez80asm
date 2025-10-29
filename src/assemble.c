@@ -522,11 +522,15 @@ void parseLine(char *src) {
                     streamtoken.start = macro_expansionbuffer;
                     oplength = strlen(streamtoken.start);
                 }
-                if(argcount == 1) {
-                    parse_operand(streamtoken.start, oplength, &operand1);
-                }
-                else {
-                    parse_operand(streamtoken.start, oplength, &operand2);
+                // Only actually parse operands if we are in NORMAL/TRUE conditional state
+                // We need this parser to parse up to the .else/.endif statement, or require partly duplicate parser code just for the conditional parsing
+                if(inConditionalSection != CONDITIONSTATE_FALSE) {
+                    if(argcount == 1) {
+                        parse_operand(streamtoken.start, oplength, &operand1);
+                    }
+                    else {
+                        parse_operand(streamtoken.start, oplength, &operand2);
+                    }
                 }
                 switch(streamtoken.terminator) {
                     case ';':
