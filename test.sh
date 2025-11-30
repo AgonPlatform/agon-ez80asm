@@ -48,7 +48,9 @@ if [ -f "bin/ez80asm" ]; then
             echo -n "s"
         fi
         echo -e " failed${NOCOLOR}"
+        exit 1
     fi
 else
     echo "Please run make first"
+    exit 1
 fi
