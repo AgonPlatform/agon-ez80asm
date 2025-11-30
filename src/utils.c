@@ -60,10 +60,10 @@ void displayerror(const char *msg, const char *context, errorlevel_t level) {
     contentitem_t *ci = currentcontentitem;
 
     if(level == LEVEL_WARNING) {
-        vdp_set_text_colour(DARK_YELLOW);
+        vdp_set_text_colour(YELLOW);
     }
     else {
-        vdp_set_text_colour(DARK_RED);
+        vdp_set_text_colour(RED);
     }
 
     if((errorcount == 1) || (level == LEVEL_WARNING)) {
@@ -80,7 +80,7 @@ void displayerror(const char *msg, const char *context, errorlevel_t level) {
             if(level == LEVEL_WARNING)
                 vdp_set_text_colour(BRIGHT_WHITE);
             else
-                vdp_set_text_colour(DARK_YELLOW);
+                vdp_set_text_colour(YELLOW);
             printf(" \'%s\'", context);
         }
         printf("\n");

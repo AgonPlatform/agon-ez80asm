@@ -15,7 +15,7 @@
 #include "hash.h"
 #include "str2num.h"
 #include "assemble.h"
-
+#include "console.h"
 // linebuffer for replacement arguments during macro expansion
 char macro_expansionbuffer[MACROLINEMAX + 1];
 
@@ -1316,13 +1316,13 @@ void processMacro(void) {
         }
         if(errorcount || issue_warning) {
             if(processednestedmacro) {
-                colorPrintf(errorcount?DARK_RED:DARK_YELLOW, "Invoked from Macro [%s] in \"%s\" line %d as\n", localexpandedmacro->name, localexpandedmacro->originfilename, localexpandedmacro->originlinenumber+localmacrolinenumber);
+                colorPrintf(errorcount?RED:YELLOW, "Invoked from Macro [%s] in \"%s\" line %d as\n", localexpandedmacro->name, localexpandedmacro->originfilename, localexpandedmacro->originlinenumber+localmacrolinenumber);
                 processednestedmacro = false;
             }
             getnextMacroLine(&lastmacrolineptr, macroline);
             trimRight(macroline);
             macroExpandArg(macro_expansionbuffer, macroline, localexpandedmacro);
-            colorPrintf(DARK_YELLOW, "%s\n",macro_expansionbuffer);
+            colorPrintf(YELLOW, "%s\n",macro_expansionbuffer);
             if(issue_warning) {
                 macro_invocation_warning = true; // flag to upstream caller that there was at least a single warning
                 issue_warning = false; // disable further LOCAL warnings until they occur
@@ -1386,10 +1386,10 @@ void processContent(const char *filename) {
         if(errorcount || issue_warning) {
             getlastContentLine(line, ci);
             if(processedmacro) {
-                colorPrintf(errorcount?DARK_RED:DARK_YELLOW, "Invoked from \"%s\" line %d as\n", filename, ci->currentlinenumber);
+                colorPrintf(errorcount?RED:YELLOW, "Invoked from \"%s\" line %d as\n", filename, ci->currentlinenumber);
                 processedmacro = false;
             }
-            if(issue_warning || (contentlevel == errorreportlevel)) colorPrintf(DARK_YELLOW, "%s", line);            
+            if(issue_warning || (contentlevel == errorreportlevel)) colorPrintf(YELLOW, "%s", line);            
             issue_warning = false;
             if(errorcount) {
                 closeContentInput(ci, callerci);

@@ -9,6 +9,27 @@
 #ifndef AGONDEV
 typedef int32_t int24_t;
 typedef uint32_t uint24_t;
+
+// DEFAULT COLOR INDEXES
+typedef enum {
+    BLACK = 0,
+    RED,
+    GREEN,
+    YELLOW,
+    BLUE,
+    MAGENTA,
+    CYAN,
+    WHITE,
+    BRIGHT_BLACK,
+    BRIGHT_RED,
+    BRIGHT_GREEN,
+    BRIGHT_YELLOW,
+    BRIGHT_BLUE,
+    BRIGHT_MAGENTA,
+    BRIGHT_CYAN,
+    BRIGHT_WHITE
+} color_t;
+
 #endif
 
 #ifdef UNIX
@@ -319,26 +340,6 @@ typedef enum {
     REQUIRED_FIRSTPASS,
     REQUIRED_LASTPASS
 } requiredResult_t;
-
-// DEFAULT COLOR INDEXES
-typedef enum {
-    DARK_BLACK = 0,
-    DARK_RED,
-    DARK_GREEN,
-    DARK_YELLOW,
-    DARK_BLUE,
-    DARK_MAGENTA,
-    DARK_CYAN,
-    DARK_WHITE,
-    BRIGHT_BLACK,
-    BRIGHT_RED,
-    BRIGHT_GREEN,
-    BRIGHT_YELLOW,
-    BRIGHT_BLUE,
-    BRIGHT_MAGENTA,
-    BRIGHT_CYAN,
-    BRIGHT_WHITE
-} color_t;
 
 // ERROR LEVELS
 typedef enum {
