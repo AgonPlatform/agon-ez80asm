@@ -3,6 +3,7 @@ name: Nightly release
 on:
   schedule:
     - cron: "0 2 * * *"  # every night at 02:00 UTC
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -23,7 +24,6 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const core = require("@actions/core");
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
