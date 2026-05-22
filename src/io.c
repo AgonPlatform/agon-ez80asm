@@ -169,7 +169,7 @@ void io_outputc(unsigned char c) {
     if(_filebuffersize[FILE_OUTPUT] == OUTPUT_BUFFERSIZE) _io_flush(FILE_OUTPUT);
 }
 
-void  ioWrite(uint8_t fh, const char *s, uint16_t size) {
+void  ioWrite(uint8_t fh, const char *s, uint24_t size) {
     if(_bufferstart[fh]) {
         // Buffered IO
         while(size--) {
