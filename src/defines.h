@@ -195,6 +195,25 @@ typedef struct {
     uint8_t         opcode;
 } opcodesequence_t;
 
+// True when two register sets share a register, or when neither of them names
+// one at all -- the test the instruction matcher applies to each operand.
+//
+// A macro over the bytes of the two words, not `(a & b) || !(a | b)`, because
+// the eZ80 has no 24-bit AND or OR: written the obvious way this becomes four
+// library calls, and the matcher runs it once per candidate encoding of a
+// mnemonic -- about a hundred of them for LD alone, on every LD, on both
+// passes. Only the low three bytes are looked at; the register bits occupy 21
+// of them, and on the PC build, where uint24_t is a 32-bit type, the fourth is
+// always zero.
+#define REGSETBYTE(p, n)    (((const uint8_t *)(p))[n])
+#define REGSETMATCH(a, b)                                       \
+    ((((REGSETBYTE(a,0) & REGSETBYTE(b,0)) |                    \
+       (REGSETBYTE(a,1) & REGSETBYTE(b,1)) |                    \
+       (REGSETBYTE(a,2) & REGSETBYTE(b,2))) != 0) ||            \
+     (((REGSETBYTE(a,0) | REGSETBYTE(b,0)) |                    \
+       (REGSETBYTE(a,1) | REGSETBYTE(b,1)) |                    \
+       (REGSETBYTE(a,2) | REGSETBYTE(b,2))) == 0))
+
 typedef struct {
     uint24_t        regsetA;            // one or more registers that need to match this operand
     uint8_t         conditionsA;        // specific addressing conditions that need to match this operand

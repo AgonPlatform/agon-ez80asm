@@ -113,3 +113,32 @@ Three things in the same vein:
 
 Geomean 2.271x (1.273x without adl0label), whole set 1.848x. Binary 56964
 bytes.
+
+## 5. Match register sets a byte at a time
+
+The instruction matcher filters a mnemonic's candidate encodings with
+
+    regamatch = (list->regsetA & operand1.reg) || !(list->regsetA | operand1.reg);
+
+once per candidate -- and LD alone has about a hundred. The eZ80 has no 24-bit
+AND or OR, so each of those lines is four library calls. A macro over the three
+low bytes of the two words does the same job inline.
+
+| source | seconds | x |
+|---|---|---|
+| opcodes_l | 0.3400 | 1.559 |
+| z80_undoc | 0.8500 | 1.276 |
+| binarytest | 1.2600 | 1.294 |
+| adl0label | 0.1800 | 38.7 |
+| rokky | 1.7300 | 1.445 |
+| bbcbasic (-m) | 13.3400 | 1.685 |
+
+Geomean 2.498x (1.444x without adl0label), whole set 1.988x. Binary 56999
+bytes.
+
+It has to be a macro. The same test written as a small function taking two
+pointers made every source *slower* than leaving the library calls alone --
+0.63s against 0.50s on opcodes_l, 15.08s against 14.32s on bbcbasic. A
+function that the compiler gives a frame to, entered through a call with two
+pushed arguments, costs more than the four hand-written library routines it was
+meant to replace. The win is in not making a call at all.
