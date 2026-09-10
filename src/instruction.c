@@ -4,6 +4,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include "ctype_tab.h"
 #include "config.h"
 #include "defines.h"
 #include "hash.h"
@@ -132,7 +133,7 @@ uint8_t getADLsuffix(void) {
 
     switch(strlen(currentline.suffix)) {
         case 1: // .s or .l
-            switch(tolower(currentline.suffix[0])) {
+            switch(TOLOWER(currentline.suffix[0])) {
                 case 's':
                     if(adlmode) return S_SIL;  // SIL
                     else return S_SIS;         // SIS
@@ -146,8 +147,8 @@ uint8_t getADLsuffix(void) {
            }
             break;
         case 2: // .is or .il
-            if(tolower(currentline.suffix[0]) != 'i') break; // illegal suffix
-            switch(tolower(currentline.suffix[1])) {
+            if(TOLOWER(currentline.suffix[0]) != 'i') break; // illegal suffix
+            switch(TOLOWER(currentline.suffix[1])) {
                 case 's':
                     if(adlmode) return S_LIS;  // LIS
                     else return S_SIS;         // SIS
@@ -161,16 +162,16 @@ uint8_t getADLsuffix(void) {
            }
             break;
         case 3:
-            if(tolower(currentline.suffix[1]) != 'i') break; // illegal suffix
-            switch(tolower(currentline.suffix[0])) {
+            if(TOLOWER(currentline.suffix[1]) != 'i') break; // illegal suffix
+            switch(TOLOWER(currentline.suffix[0])) {
                 case 's':
-                    if(tolower(currentline.suffix[2]) == 's') return S_SIS; // SIS
-                    if(tolower(currentline.suffix[2]) == 'l') return S_SIL; // SIL
+                    if(TOLOWER(currentline.suffix[2]) == 's') return S_SIS; // SIS
+                    if(TOLOWER(currentline.suffix[2]) == 'l') return S_SIL; // SIL
                     // illegal suffix
                     break;
                 case 'l':
-                    if(tolower(currentline.suffix[2]) == 's') return S_LIS; // LIS
-                    if(tolower(currentline.suffix[2]) == 'l') return S_LIL; // LIL
+                    if(TOLOWER(currentline.suffix[2]) == 's') return S_LIS; // LIS
+                    if(TOLOWER(currentline.suffix[2]) == 'l') return S_LIL; // LIL
                     // illegal suffix
                     break;
                 default: // illegal suffix

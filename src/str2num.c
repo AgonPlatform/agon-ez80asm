@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include "ctype_tab.h"
 #include "globals.h"
 #include "config.h"
 #include "defines.h"
@@ -95,7 +96,7 @@ int32_t str2num(const char *string, uint8_t length) {
         return result;
     }
 
-    lastchar = tolower(string[length-1]);
+    lastchar = TOLOWER(string[length-1]);
     
     if(lastchar == 'h') {
         strcpy(buffer, string);
@@ -105,11 +106,11 @@ int32_t str2num(const char *string, uint8_t length) {
     }
 
     if((*string == '0') && (length >= 2)) {
-        if(tolower(*(string+1)) == 'x') {
+        if(TOLOWER(*(string+1)) == 'x') {
             result = str2hex(string+2);
             return result;
         }
-        if(tolower(*(string+1)) == 'b') {
+        if(TOLOWER(*(string+1)) == 'b') {
             result = str2bin(string+2);
             return result;
         }

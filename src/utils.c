@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include "ctype_tab.h"
 #include "defines.h"
 #include "globals.h"
 #include "console.h"
@@ -132,7 +133,7 @@ void warning(const char *msg, const char *contextformat, ...) {
 void trimRight(char *str) {
     while(*str) str++;
     str--;
-    while(isspace(*str)) str--;
+    while(ISSPACE(*str)) str--;
     str++;
     *str = 0;
 }
@@ -143,13 +144,13 @@ uint8_t getMnemonicToken(streamtoken_t *token, char *src) {
     uint8_t length = 0;
 
     // skip leading space
-    while(*src && (isspace(*src))) src++;
+    while(*src && (ISSPACE(*src))) src++;
     if(*src == 0) {
         memset(token, 0, sizeof(streamtoken_t));
         return 0;
     }
     token->start = src;
-    while(!isspace(*src) && (*src != ';') && (*src != ':') && *src) {
+    while(!ISSPACE(*src) && (*src != ';') && (*src != ':') && *src) {
         length++;
         src++;
     }
@@ -168,7 +169,7 @@ uint8_t getOperandToken(streamtoken_t *token, char *src) {
     bool inliteral = false;
 
     // skip leading space
-    while(*src && (isspace(*src))) src++;
+    while(*src && (ISSPACE(*src))) src++;
     if(*src == 0) {
         memset(token, 0, sizeof(streamtoken_t));
         return 0;
@@ -198,7 +199,7 @@ uint8_t getOperandToken(streamtoken_t *token, char *src) {
 
     if(length) {
         *src-- = 0; // terminate early and revert one character
-        while(isspace(*src)) { // remove trailing space(s)
+        while(ISSPACE(*src)) { // remove trailing space(s)
             *src-- = 0; // terminate on trailing spaces
             if(length-- == 0) break;
         }
@@ -238,7 +239,7 @@ uint8_t getDefineValueToken(streamtoken_t *token, char *src) {
     bool terminated;
 
     // skip leading space
-    while(*src && (isspace(*src))) src++;
+    while(*src && (ISSPACE(*src))) src++;
     if(*src == 0) {
         memset(token, 0, sizeof(streamtoken_t));
         return 0;
@@ -309,7 +310,7 @@ uint8_t getDefineValueToken(streamtoken_t *token, char *src) {
 
     if(length) {
         *src-- = 0; // terminate early and revert one character
-        while(isspace(*src)) { // remove trailing space(s)
+        while(ISSPACE(*src)) { // remove trailing space(s)
             *src-- = 0; // terminate on trailing spaces
             if(length-- == 0) break;
         }
@@ -477,7 +478,7 @@ int32_t getExpressionValue(char *str, requiredResult_t requiredPass) {
 
     if((pass == STARTPASS) && (requiredPass == REQUIRED_LASTPASS)) return 0;
 
-    while(isspace(*str)) str++; // eat all spaces
+    while(ISSPACE(*str)) str++; // eat all spaces
     errptr = str;
 
     operator = 0; // first implicit operator
@@ -497,7 +498,7 @@ int32_t getExpressionValue(char *str, requiredResult_t requiredPass) {
         switch(state) {
             case UNARY:
                 unaryoperator = *str++;
-                while(isspace(*str)) str++; // eat all spaces
+                while(ISSPACE(*str)) str++; // eat all spaces
                 if(*str == 0) {
                     error(message[ERROR_MISSINGLABELORNUMBER],"%s",errptr);
                     return 0;
@@ -522,7 +523,7 @@ int32_t getExpressionValue(char *str, requiredResult_t requiredPass) {
                     error(message[ERROR_OPERATOR], "%c", operator);
                     return 0;
                 }
-                while(isspace(*str)) str++; // eat all spaces
+                while(ISSPACE(*str)) str++; // eat all spaces
                 if(*str == 0) {
                     error(message[ERROR_MISSINGLABELORNUMBER],"%s",errptr);
                     return 0;
@@ -594,7 +595,7 @@ int32_t getExpressionValue(char *str, requiredResult_t requiredPass) {
                 operator = 0;
                 unaryoperator = 0;
 
-                while(isspace(*str)) str++; // eat all spaces
+                while(ISSPACE(*str)) str++; // eat all spaces
                 if(*str) state = OP;
                 else return total;
                 break;
