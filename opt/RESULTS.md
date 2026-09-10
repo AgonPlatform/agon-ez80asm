@@ -265,3 +265,17 @@ state to load. The flag is consulted when one of the three turns up.
 
 Geomean 2.812x (1.645x without adl0label), whole set 2.164x. Binary 56231
 bytes.
+
+## Verification on the Agon itself
+
+`opt/verify.sh` runs on the PC, where `int` is 32 bits and `uint24_t` is a
+32-bit type wearing a hat. The macros added here read the bytes of a word, so
+the machine they run on matters. `opt/verify-agon.sh` boots the emulator once,
+assembles 23 sources with the stock v2.2 binary and with this build into
+separate directories, and compares the binary, the listing and the console
+output of each pair. 23 of 23 agree.
+
+The set is chosen for what changed: line lengths at 256 and 257 characters and
+with CRLF endings for the rewritten line readers, truncated and wide immediates
+for the range macros, DS and ORG fills for the block writer, three listings for
+the paths that keep their character-at-a-time loop, and bbcbasic under `-m`.
