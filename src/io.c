@@ -260,9 +260,14 @@ void ioFlushDSSpaces(void) {
 
 void emit_8bit(uint8_t value) {
     if(pass == ENDPASS) {
-        ioFlushDSSpaces();
+        // ioFlushDSSpaces() does nothing at all unless a DS is pending, and
+        // io_outputc() is four lines; called they are three calls for every
+        // byte the assembler emits, which is the most-run path there is.
+        if(remaining_dsspaces) ioFlushDSSpaces();
         if(listing) listEmit8bit(value);
-        io_outputc(value);
+        *(_filebuffer[FILE_OUTPUT]++) = value;
+        _filebuffersize[FILE_OUTPUT]++;
+        if(_filebuffersize[FILE_OUTPUT] == OUTPUT_BUFFERSIZE) _io_flush(FILE_OUTPUT);
     }
     address++;
 }

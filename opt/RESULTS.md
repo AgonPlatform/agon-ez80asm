@@ -226,3 +226,23 @@ instruction hash. A small change -- bbcbasic 12.50s to 12.48s, rokky 1.63s to
 1.62s, nothing else moved -- and 234 bytes off the binary, so it stays.
 
 Binary 56188 bytes. Geomean 2.747x, whole set 2.129x.
+
+## 10. Three calls per emitted byte, down to none
+
+`emit_8bit()` is the most-run path in the assembler, and every byte through it
+made three calls: `ioFlushDSSpaces()`, which does nothing unless a DS is
+pending; `io_outputc()`, which is four lines; and `_io_flush()` once a bufferful.
+Testing `remaining_dsspaces` before the first and writing the four lines in
+place leaves only the flush, once every 32 KB.
+
+| source | seconds | x |
+|---|---|---|
+| opcodes_l | 0.2450 | 2.163 |
+| z80_undoc | 0.7700 | 1.409 |
+| binarytest | 1.1950 | 1.364 |
+| adl0label | 0.1700 | 41.0 |
+| rokky | 1.6000 | 1.562 |
+| bbcbasic (-m) | 12.3800 | 1.816 |
+
+Geomean 2.802x (1.638x without adl0label), whole set 2.151x. Binary 56234
+bytes.
