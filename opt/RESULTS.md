@@ -142,3 +142,30 @@ pointers made every source *slower* than leaving the library calls alone --
 function that the compiler gives a frame to, entered through a call with two
 pushed arguments, costs more than the four hand-written library routines it was
 meant to replace. The win is in not making a call at all.
+
+## 6. Range-check by looking at the bytes
+
+The truncation warnings ask whether a 32-bit value fits in one, two or three
+bytes, signed or unsigned. On the eZ80 a 32-bit comparison is a library call,
+and these run for every initializer in a DB/DW/DL list and for every immediate
+an instruction emits. `OUTOFRANGE8/16/24` ask the same question of the bytes of
+the word. The same treatment goes to `get_ddfd_prefix()` and the two index
+register transforms, whose 24-bit ANDs were library calls too.
+
+| source | seconds | x |
+|---|---|---|
+| opcodes_l | 0.3400 | 1.559 |
+| z80_undoc | 0.8300 | 1.307 |
+| binarytest | 1.2600 | 1.294 |
+| adl0label | 0.1700 | 41.0 |
+| rokky | 1.7200 | 1.453 |
+| bbcbasic (-m) | 13.2800 | 1.693 |
+
+Geomean 2.536x (1.453x without adl0label), whole set 2.000x. Binary 56886
+bytes.
+
+`validateRange8/16/24bit()` had to change to take the value by address. Given a
+value it holds in registers, the compiler produced the bytes the macro asked
+for with 32-bit shifts -- `__lshru`, `__ishru`, `__land`, more library calls
+than the comparison it replaced -- and the first attempt cost bbcbasic 1.8%.
+Passing an address leaves it no choice but to load the bytes.
