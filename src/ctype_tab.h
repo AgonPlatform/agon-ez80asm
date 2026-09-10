@@ -28,7 +28,6 @@
 #define OPERATOR_BINARY         2   // + and -, which may also be unary
 #define OPERATOR_NEVERUNARY     3   // * / < > & | ^
 
-extern const uint8_t ctype_lower[256];
 extern const uint8_t ctype_mnemonicend[256];
 extern const uint8_t ctype_operator[256];
 extern const uint8_t ctype_exprend[256];
@@ -38,7 +37,11 @@ extern const uint8_t ctype_exprend[256];
 // a table: the loop that skips a line's indentation is the busiest in the
 // assembler. Evaluates its argument twice, so hand it a plain character.
 #define ISSPACE(c)          (((uint8_t)(c) == ' ') || ((uint8_t)((uint8_t)(c) - 0x09) <= 0x04))
-#define TOLOWER(c)          (ctype_lower[(uint8_t)(c)])
+// 'A'-'Z' fold, everything else is itself. Like ISSPACE(), a compare and an
+// add beat indexing a table, and this one runs per character of every mnemonic
+// on the way into the hash. Evaluates its argument more than once, so hand it
+// a plain character.
+#define TOLOWER(c)          ((uint8_t)((uint8_t)((uint8_t)(c) - 'A') <= 25 ? (uint8_t)(c) + 32 : (uint8_t)(c)))
 
 // Ends a mnemonic: whitespace, a comment, a label colon, or end of line.
 #define ISMNEMONICEND(c)    (ctype_mnemonicend[(uint8_t)(c)])
