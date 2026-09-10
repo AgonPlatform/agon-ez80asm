@@ -36,3 +36,22 @@ tables and a macro apiece turn each call into an index and a load.
 Binary 55601 -> 55377 bytes.
 
 Geomean 1.085x, whole set 1.105x.
+
+## 2. Read a line with memchr() and memcpy()
+
+Both line readers walked the input one character at a time, testing the line
+length on every character. agondev's memchr() is `cpir` and its memcpy() is
+`ldir`, so finding the newline and copying up to it costs a fraction of a C
+loop. The character-at-a-time loop stays for the line-too-long case, which is
+the only one that needs to report where it stopped.
+
+| source | seconds | x |
+|---|---|---|
+| opcodes_l | 0.4950 | 1.071 |
+| z80_undoc | 0.9400 | 1.154 |
+| binarytest | 1.3900 | 1.173 |
+| adl0label | 6.9900 | 0.997 |
+| rokky | 2.1700 | 1.152 |
+| bbcbasic (-m) | 14.7600 | 1.523 |
+
+Geomean 1.168x, whole set 1.316x. Binary 55842 bytes.

@@ -638,18 +638,47 @@ uint16_t getnextMacroLine(char **ptr, char *dst) {
     return len;
 }
 
+// How many characters of a line may still be copied in one block.
+//
+// A line is at most LINEMAX characters, and the character at LINEMAX is only
+// allowed when it is the newline that ends the line -- so a run that ends on a
+// newline may be one longer than one that does not. Anything longer has to be
+// copied a character at a time, because that is the path that reports where it
+// stopped, and this is the rare case anyway.
+#define LINERUNFITS(len, run, endsonnewline) \
+    (((len) + (run)) <= (uint24_t)LINEMAX + ((endsonnewline) ? 1 : 0))
+
 uint16_t _readFullBufferedLine(char *dst1, contentitem_t *ci) {
     uint16_t len = 0;
     char *ptr = ci->readptr;
+    uint24_t remaining = ci->size - ci->filepos;
+    char *end;
+    uint24_t run;
 
-    while(*ptr) {
-        if((len++ == LINEMAX) && (*ptr != '\n')) {
-            error(message[ERROR_LINETOOLONG],0);
-            return 0;
-        }
-        *dst1++ = *ptr;
-        if(*ptr++ == '\n') {
-            break;
+    // The line runs to the next newline, or to the end of the file. An
+    // embedded zero ends it early, the way reading character by character did,
+    // but only the characters up to the newline need looking at for one.
+    end = memchr(ptr, '\n', remaining);
+    run = end ? (uint24_t)(end - ptr) + 1 : remaining;
+    end = memchr(ptr, 0, run);
+    if(end) run = (uint24_t)(end - ptr);
+
+    if(LINERUNFITS(len, run, run && (ptr[run-1] == '\n'))) {
+        memcpy(dst1, ptr, run);
+        dst1 += run;
+        ptr += run;
+        len = run;
+    }
+    else {
+        while(*ptr) {
+            if((len++ == LINEMAX) && (*ptr != '\n')) {
+                error(message[ERROR_LINETOOLONG],0);
+                return 0;
+            }
+            *dst1++ = *ptr;
+            if(*ptr++ == '\n') {
+                break;
+            }
         }
     }
     ci->readptr = ptr;
@@ -674,19 +703,42 @@ uint16_t _readMinimumBufferedLine(char *dst, contentitem_t *ci) {
             if(ci->bytesinbuffer == 0) done = true;
         }
         else {
+            unsigned int left = ci->bytesinbuffer;
+            char *end;
+            uint24_t run;
+
             ptr = ci->readptr;
-            while(ci->bytesinbuffer) {
-                if((len++ == LINEMAX) && (*ptr != '\n')) {
-                    error(message[ERROR_LINETOOLONG],0);
-                    return 0;
-                }
-                ci->bytesinbuffer--;
-                *dst++ = *ptr;
-                if(*ptr++ == '\n') {
-                    done = true;
-                    break;
+            // Whatever the buffer holds up to and including the next newline;
+            // without one, everything left, and the outer loop refills.
+            end = memchr(ptr, '\n', left);
+            run = end ? (uint24_t)(end - ptr) + 1 : left;
+
+            if(LINERUNFITS(len, run, end != NULL)) {
+                memcpy(dst, ptr, run);
+                dst += run;
+                ptr += run;
+                left -= run;
+                len += run;
+                if(end) done = true;
+            }
+            else {
+                while(left) {
+                    char c;
+                    if((len++ == LINEMAX) && (*ptr != '\n')) {
+                        ci->bytesinbuffer = left;
+                        error(message[ERROR_LINETOOLONG],0);
+                        return 0;
+                    }
+                    left--;
+                    c = *ptr++;
+                    *dst++ = c;
+                    if(c == '\n') {
+                        done = true;
+                        break;
+                    }
                 }
             }
+            ci->bytesinbuffer = left;
         }
     }
     *dst = 0;
