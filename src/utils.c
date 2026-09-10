@@ -658,48 +658,6 @@ uint16_t getnextMacroLine(char **ptr, char *dst) {
 #define LINERUNFITS(len, run, endsonnewline) \
     (((len) + (run)) <= (uint24_t)LINEMAX + ((endsonnewline) ? 1 : 0))
 
-uint16_t _readFullBufferedLine(char *dst1, contentitem_t *ci) {
-    uint16_t len = 0;
-    char *ptr = ci->readptr;
-    uint24_t remaining = ci->size - ci->filepos;
-    char *end;
-    uint24_t run;
-
-    // The line runs to the next newline, or to the end of the file. An
-    // embedded zero ends it early, the way reading character by character did,
-    // but only the characters up to the newline need looking at for one.
-    end = memchr(ptr, '\n', remaining);
-    run = end ? (uint24_t)(end - ptr) + 1 : remaining;
-    end = memchr(ptr, 0, run);
-    if(end) run = (uint24_t)(end - ptr);
-
-    if(LINERUNFITS(len, run, run && (ptr[run-1] == '\n'))) {
-        memcpy(dst1, ptr, run);
-        dst1 += run;
-        ptr += run;
-        len = run;
-    }
-    else {
-        while(*ptr) {
-            if((len++ == LINEMAX) && (*ptr != '\n')) {
-                error(message[ERROR_LINETOOLONG],0);
-                return 0;
-            }
-            *dst1++ = *ptr;
-            if(*ptr++ == '\n') {
-                break;
-            }
-        }
-    }
-    ci->readptr = ptr;
-    ci->filepos += len;
-    ci->lastreadlength = len;
-    *dst1 = 0;
-    return len;
-}
-
-// Used with '-m' minimum buffered configuration
-//
 // Refills the buffer so that it ends on a line boundary: whatever the last
 // read left after its final newline is carried to the front, the file is read
 // into the rest, and the usable end is pulled back to the last newline in what
@@ -747,7 +705,7 @@ bool _fillLineBuffer(contentitem_t *ci) {
 }
 
 // Reads a LINE from the buffer and returns its length
-uint16_t _readMinimumBufferedLine(char *dst, contentitem_t *ci) {
+uint16_t _readBufferedLine(char *dst, contentitem_t *ci) {
     uint16_t len = 0;
     char *ptr;
     char *end;
@@ -801,13 +759,7 @@ uint16_t _readMinimumBufferedLine(char *dst, contentitem_t *ci) {
 
 // Get line from contentitem, copy it to dst
 uint16_t getnextContentLine(char *dst, contentitem_t *ci) {
-
-    if(completefilebuffering) {
-        return _readFullBufferedLine(dst, ci);
-    }
-    else {
-        return _readMinimumBufferedLine(dst, ci);
-    }
+    return _readBufferedLine(dst, ci);
 }
 
 uint16_t getlastContentLine(char *dst, contentitem_t *ci) {

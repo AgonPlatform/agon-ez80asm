@@ -422,3 +422,49 @@ using memory -- and a 1 KiB buffer with the trimmed refill already beats a
 own.
 
 Geomean 2.845x, whole set 2.257x.
+
+## 16. One way to read a file
+
+`-m` chose between two readers: without it, every source file was read whole
+into memory and lines were handed out of that; with it, files were read a
+buffer at a time. The first is why a large project could not be assembled on
+an Agon at all -- the BBC BASIC tree is 386 KB of source on a 512 KB machine,
+and without `-m` it resets the machine, twenty-six times in four minutes of
+trying.
+
+With the refill of section 14 in place, the buffered reader is not slower than
+the resident one anywhere. Every source, both ways, on the same binary:
+
+| source | whole file in memory | a buffer at a time |
+|---|---|---|
+| opcodes_l | 0.2350 | 0.2300 |
+| z80_undoc | 0.7600 | 0.7500 |
+| binarytest | 1.1500 | 1.1250 |
+| adl0label | 0.1900 | 0.1800 |
+| rokky | 1.5500 | 1.5500 |
+| bbcbasic | resets the machine | 11.5200 |
+
+So the resident reader is a mode that is never faster, cannot do the big job,
+and costs a second reader, a second INCBIN path, a branch in four files and a
+per-file allocation of the whole source. It goes. `-m` is still accepted and
+ignored, so command lines that pass it keep working.
+
+| source | seconds | x |
+|---|---|---|
+| opcodes_l | 0.2350 | 2.255 |
+| z80_undoc | 0.7450 | 1.456 |
+| binarytest | 1.1150 | 1.462 |
+| adl0label | 0.1700 | 41.0 |
+| rokky | 1.5200 | 1.645 |
+| bbcbasic | 11.4800 | 1.958 |
+
+Geomean 2.931x (1.729x without adl0label), whole set 2.306x. Binary 56597 ->
+55853 bytes.
+
+One thing this cannot measure. The emulator's SD card is a directory on the
+host, so reading a file costs almost nothing; on real hardware it does not.
+The resident reader read each file once, in pass 1, and pass 2 came out of
+memory; the buffered reader reads every file in both passes. For the BBC BASIC
+tree that is 772 KB off the card instead of 386 KB. On a real Agon that
+difference is worth measuring before taking this change -- though the mode it
+replaces cannot assemble that tree at all.

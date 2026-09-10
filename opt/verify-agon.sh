@@ -99,14 +99,15 @@ boots=$(grep -c "MOS Version" "$W/cap" || true)
 [ "${boots:-1}" -gt 1 ] && echo "WARNING: the machine reset $((boots - 1)) time(s)" >&2
 
 # Split the transcript into one chunk per run: stock first, then this build,
-# for each source in turn. A run starts at "Assembling <file>", except with -m,
-# where the memory banner is printed first and starts it instead. The timing
-# line is dropped, being the one thing that legitimately differs.
-tr -d '\r' < "$W/cap" | awk '
-    /^Setting minimum memory configuration/ { n++; started = 1 }
-    /^Assembling /                          { if (!started) n++; started = 0 }
-    n && !/^Done in /                       { print > (dir "/con." n) }
-' dir="$W" -
+# for each source in turn. A run starts at "Assembling <file>". Two lines go
+# first: the timing, and the banner the stock binary printed on -m, which this
+# build has no mode left to announce.
+tr -d '\r' < "$W/cap" \
+    | grep -vE '^Setting minimum memory configuration$' \
+    | awk '
+        /^Assembling /    { n++ }
+        n && !/^Done in / { print > (dir "/con." n) }
+    ' dir="$W" -
 
 # cmp, but two files that are both absent count as the same.
 same_file() {

@@ -45,19 +45,6 @@ contentitem_t *insertContent(const char *filename) {
     ci->name = allocateString(filename, &filecontentsize);
     if(ci->name == NULL) return NULL;
 
-    if(completefilebuffering) {
-        ci->fh = ioOpenfile(filename, "rb");
-        if(ci->fh == 0) return NULL;
-        ci->size = ioGetfilesize(ci->fh);
-        ci->buffer = allocateMemory(ci->size+1, &filecontentsize);
-        if(ci->buffer == NULL) return NULL;
-        if(fread(ci->buffer, 1, ci->size, ci->fh) != ci->size) {
-            error(message[ERROR_READINGINPUT],0);
-            return NULL;
-        }
-        ci->buffer[ci->size] = 0; // terminate stringbuffer
-        fclose(ci->fh);
-    }
     strcpy(ci->labelscope, ""); // empty scope
     ci->next = NULL;
 
@@ -866,12 +853,10 @@ void handle_asm_incbin(void) {
     }
 
     if(pass == STARTPASS) {
-        if(!completefilebuffering) {
-            ci->fh = ioOpenfile(ci->name, "rb");
-            if(ci->fh == 0) return;
-            ci->size = ioGetfilesize(ci->fh);
-            fclose(ci->fh);
-        }
+        ci->fh = ioOpenfile(ci->name, "rb");
+        if(ci->fh == 0) return;
+        ci->size = ioGetfilesize(ci->fh);
+        fclose(ci->fh);
         address += ci->size;
     }
     if(pass == ENDPASS) {
@@ -879,16 +864,7 @@ void handle_asm_incbin(void) {
         // Flush them before incbin's direct-write paths bypass emit_8bit().
         if(ci->size) ioFlushDSSpaces();
 
-        if(completefilebuffering) {
-            if(listing) { // Output needs to pass to the listing through emit_8bit, performance-hit
-                for(n = 0; n < ci->size; n++) emit_8bit(ci->buffer[n]);
-            }
-            else {
-                ioWrite(FILE_OUTPUT, ci->buffer, ci->size);
-                address += ci->size;
-            }
-        }
-        else {
+        {
             char buffer[INPUT_BUFFERSIZE];
 
             ci->fh = ioOpenfile(ci->name, "rb");

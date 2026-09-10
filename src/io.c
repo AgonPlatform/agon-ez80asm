@@ -366,31 +366,24 @@ void initFileContentTable(void) {
 void seekContentInput(contentitem_t *ci, uint24_t position) {
     ci->filepos = position;
 
-    if(completefilebuffering) {
-        ci->readptr = ci->buffer + position;
-    }
-    else {
-        // Reset the buffer, the carried partial line with it: the seek is
-        // absolute, so nothing already read is worth keeping.
-        ci->bytesinbuffer = 0;
-        ci->rawinbuffer = 0;
-        ci->readptr = ci->buffer;
-        if(fseek(ci->fh, position, SEEK_SET)) {
-            error(message[ERROR_FILEIO],"%s",ci->name);
-            return;
-        }
+    // Reset the buffer, the carried partial line with it: the seek is
+    // absolute, so nothing already read is worth keeping.
+    ci->bytesinbuffer = 0;
+    ci->rawinbuffer = 0;
+    ci->readptr = ci->buffer;
+    if(fseek(ci->fh, position, SEEK_SET)) {
+        error(message[ERROR_FILEIO],"%s",ci->name);
+        return;
     }
 }
 
 void openContentInput(contentitem_t *ci, char *buffer) {
-    if(!completefilebuffering) {
-        ci->buffer = buffer;
-        ci->bytesinbuffer = 0;
-        ci->rawinbuffer = 0;
-        ci->fh = ioOpenfile(ci->name, "rb");
-        if(ci->fh == 0) return;
-        ci->size = ioGetfilesize(ci->fh);
-    }
+    ci->buffer = buffer;
+    ci->bytesinbuffer = 0;
+    ci->rawinbuffer = 0;
+    ci->fh = ioOpenfile(ci->name, "rb");
+    if(ci->fh == 0) return;
+    ci->size = ioGetfilesize(ci->fh);
     ci->currentlinenumber = 0;
     ci->inConditionalSection = inConditionalSection;
     ci->readptr = ci->buffer;
@@ -402,12 +395,10 @@ void openContentInput(contentitem_t *ci, char *buffer) {
 }
 
 void closeContentInput(contentitem_t *ci, contentitem_t *callerci) {
-    if(!completefilebuffering) {    
-        ci->buffer = NULL;
-        ci->bytesinbuffer = 0;
-        ci->size = 0;
-        fclose(ci->fh);
-    }
+    ci->buffer = NULL;
+    ci->bytesinbuffer = 0;
+    ci->size = 0;
+    fclose(ci->fh);
     ci->filepos = 0;
     ci->readptr = NULL;
 

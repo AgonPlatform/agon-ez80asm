@@ -38,7 +38,7 @@ void printHelp(void) {
     printf("  -d\tDirect listing to console\n");
     printf("  -c\tNo color codes in output\n");
     printf("  -x\tDisplay assembly statistics\n");
-    printf("  -m\tMinimum memory configuration\n");
+    printf("  -m\tAccepted and ignored, kept so older command lines still run\n");
     printf("\n");
 }
 
@@ -83,8 +83,8 @@ void parseOptions(int argc, char *argv[]) {
                 consolelist_enabled = true;
                 break;
             case 'm':
-                printf("Setting minimum memory configuration\n");
-                completefilebuffering = false;
+                // Accepted and ignored. Source files are always read a buffer
+                // at a time now; there is no other mode to ask for.
                 break;
             case 'l':
                 list_enabled = true;
@@ -182,7 +182,6 @@ int main(int argc, char *argv[]) {
     exportsymbols = false;
     displaystatistics = false;
     coloroutput = true;
-    completefilebuffering = true;
     ignore_truncation_warnings = false;
 
     parseOptions(argc, argv);

@@ -15,8 +15,14 @@
 # output is compared too, with the timing line dropped, so a change that alters
 # a diagnostic is caught even when it does not alter a byte.
 #
-# -m is in the list because it is a different reader, with its own buffer
-# refilling, and nothing else exercises it.
+# -m is in the list because it used to select a different reader. It no longer
+# selects anything, which is the point: the stock binary reads whole files into
+# memory without it and a buffer at a time with it, and this build always reads
+# a buffer at a time, so the plain runs compare one against the other.
+#
+# Two lines are dropped from the console before comparing: the timing, and the
+# banner the stock binary printed on -m, which there is no longer a mode to
+# announce.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -42,8 +48,8 @@ for d in $DIRS; do
         for flags in "-c" "-c -l" "-c -m" "-c -m -l"; do
             rm -rf "$W/a" "$W/b"; mkdir -p "$W/a" "$W/b"
             cp -r "$d"/* "$W/a/" 2>/dev/null; cp -r "$d"/* "$W/b/" 2>/dev/null
-            (cd "$W/a" && timeout 60 "$STOCK" "$base" out.bin $flags 2>&1 | grep -v '^Done in ' > s.log)
-            (cd "$W/b" && timeout 60 "$NEW"   "$base" out.bin $flags 2>&1 | grep -v '^Done in ' > n.log)
+            (cd "$W/a" && timeout 60 "$STOCK" "$base" out.bin $flags 2>&1 | grep -vE '^Done in |^Setting minimum memory configuration$' > s.log)
+            (cd "$W/b" && timeout 60 "$NEW"   "$base" out.bin $flags 2>&1 | grep -vE '^Done in |^Setting minimum memory configuration$' > n.log)
             mv "$W/a/s.log" "$W/s.log"; mv "$W/b/n.log" "$W/n.log"
             diff -r "$W/a" "$W/b" > /dev/null 2>&1 || bad="$bad files($flags)"
             cmp -s "$W/s.log" "$W/n.log" || bad="$bad console($flags)"

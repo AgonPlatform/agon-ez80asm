@@ -18,7 +18,6 @@ extern contentitem_t *currentcontentitem;
 extern uint16_t sourcefilecount;
 extern uint16_t binfilecount;
 extern uint24_t filecontentsize;
-extern bool completefilebuffering;
 extern unsigned int macrolinenumber;
 extern unsigned int pass;
 extern conditionalstate_t inConditionalSection;
