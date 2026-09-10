@@ -55,3 +55,36 @@ the only one that needs to report where it stopped.
 | bbcbasic (-m) | 14.7600 | 1.523 |
 
 Geomean 1.168x, whole set 1.316x. Binary 55842 bytes.
+
+## 3. Write runs of bytes in blocks
+
+Three output paths moved one byte at a time through the buffer:
+
+* `ioWrite()`, which INCBIN hands a whole file to at once,
+* `ioFlushDSSpaces()`, which writes out a pending DS reservation,
+* the fill loop in `handle_asm_org()`, which closes the gap to a new ORG.
+
+The first now copies with memcpy(); the other two fill with memset() through a
+new `io_outputfill()`. Each still flushes the buffer at exactly the same
+points. The ORG fill keeps its character-at-a-time loop when a listing is being
+produced, because the listing has to see every byte go by.
+
+| source | seconds | x |
+|---|---|---|
+| opcodes_l | 0.5000 | 1.060 |
+| z80_undoc | 0.9400 | 1.154 |
+| binarytest | 1.3950 | 1.168 |
+| adl0label | 0.1700 | 41.0 |
+| rokky | 1.8800 | 1.330 |
+| bbcbasic (-m) | 14.7800 | 1.521 |
+
+Geomean 2.216x, whole set 1.790x. Binary 56222 bytes.
+
+adl0label is a source whose ORG statements leave 96 KB of gap, so it was
+spending nearly all of its time in that fill loop; 41x is what removing it
+looks like and it pulls the geomean up on its own. Without that source the
+geomean is 1.24x.
+
+`opt/verify.sh` now assembles every source twice, plainly and with `-l`, and
+compares the whole output directory -- binary, listing and label file -- plus
+the console output with the timing line removed.
