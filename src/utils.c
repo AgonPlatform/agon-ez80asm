@@ -319,25 +319,29 @@ uint8_t getDefineValueToken(streamtoken_t *token, char *src) {
     return length;
 }
 
-void validateRange8bit(int32_t value, const char *name) {
+// These take the value by address, not by value. The range macros read the
+// bytes of the word, and given a value it is holding in registers the compiler
+// will happily produce those bytes with 32-bit shifts -- library calls, the
+// very thing the macro exists to avoid. Given an address it has to load them.
+void validateRange8bit(const int32_t *value, const char *name) {
     if(!(ignore_truncation_warnings)) {
-        if((value > 0xff) || (value < -128)) {
+        if(OUTOFRANGE8(value)) {
             warning(message[WARNING_TRUNCATED_8BIT],"%s",name);
         }
     }
 }
 
-void validateRange16bit(int32_t value, const char *name) {
+void validateRange16bit(const int32_t *value, const char *name) {
     if(!(ignore_truncation_warnings)) {
-        if((value > 0xffff) || (value < -32768)) {
+        if(OUTOFRANGE16(value)) {
             warning(message[WARNING_TRUNCATED_16BIT],"%s",name);
         }
     }
 }
 
-void validateRange24bit(int32_t value, const char *name) {
+void validateRange24bit(const int32_t *value, const char *name) {
     if(!(ignore_truncation_warnings)) {
-        if((value > 0xffffff) || (value < -8388608)) {
+        if(OUTOFRANGE24(value)) {
             warning(message[WARNING_TRUNCATED_24BIT],"%s",name);
         }
     }

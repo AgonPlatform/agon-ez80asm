@@ -640,19 +640,19 @@ void handle_asm_data(uint8_t wordtype) {
                             break;
                         default:
                             value = getExpressionValue(token.start, REQUIRED_LASTPASS); // not needed in pass 1
-                            if(pass == ENDPASS) validateRange8bit(value, token.start);
+                            if(pass == ENDPASS) validateRange8bit(&value, token.start);
                             emit_8bit(value);
                             break;
                     }
                     break;
                 case ASM_DW:
                     value = getExpressionValue(token.start, REQUIRED_LASTPASS);
-                    if(pass == ENDPASS) validateRange16bit(value, token.start);
+                    if(pass == ENDPASS) validateRange16bit(&value, token.start);
                     emit_16bit(value);
                     break;
                 case ASM_DW24:
                     value = getExpressionValue(token.start, REQUIRED_LASTPASS);
-                    if(pass == ENDPASS) validateRange24bit(value, token.start);
+                    if(pass == ENDPASS) validateRange24bit(&value, token.start);
                     emit_24bit(value);
                     break;
                 case ASM_DW32:
@@ -964,17 +964,17 @@ void handle_asm_blk(uint8_t width) {
                 if(val != fillbyte) warning(message[WARNING_UNSUPPORTED_INITIALIZER],"%s",token.start);
                 break;
             case 1:
-                if(pass == ENDPASS) validateRange8bit(val, token.start);
+                if(pass == ENDPASS) validateRange8bit(&val, token.start);
                 emit_8bit(val);
                 num -= 1;
                 break;
             case 2:
-                if(pass == ENDPASS) validateRange16bit(val, token.start);
+                if(pass == ENDPASS) validateRange16bit(&val, token.start);
                 emit_16bit(val);
                 num -= 1;
                 break;
             case 3:
-                if(pass == ENDPASS) validateRange24bit(val, token.start);
+                if(pass == ENDPASS) validateRange24bit(&val, token.start);
                 emit_24bit(val);
                 num -= 1;
                 break;

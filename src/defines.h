@@ -206,13 +206,32 @@ typedef struct {
 // of them, and on the PC build, where uint24_t is a 32-bit type, the fourth is
 // always zero.
 #define REGSETBYTE(p, n)    (((const uint8_t *)(p))[n])
-#define REGSETMATCH(a, b)                                       \
-    ((((REGSETBYTE(a,0) & REGSETBYTE(b,0)) |                    \
-       (REGSETBYTE(a,1) & REGSETBYTE(b,1)) |                    \
-       (REGSETBYTE(a,2) & REGSETBYTE(b,2))) != 0) ||            \
-     (((REGSETBYTE(a,0) | REGSETBYTE(b,0)) |                    \
-       (REGSETBYTE(a,1) | REGSETBYTE(b,1)) |                    \
-       (REGSETBYTE(a,2) | REGSETBYTE(b,2))) == 0))
+#define REGSETOVERLAP(a, b)                                     \
+    (((REGSETBYTE(a,0) & REGSETBYTE(b,0)) |                     \
+      (REGSETBYTE(a,1) & REGSETBYTE(b,1)) |                     \
+      (REGSETBYTE(a,2) & REGSETBYTE(b,2))) != 0)
+#define REGSETEMPTY(a, b)                                       \
+    (((REGSETBYTE(a,0) | REGSETBYTE(b,0)) |                     \
+      (REGSETBYTE(a,1) | REGSETBYTE(b,1)) |                     \
+      (REGSETBYTE(a,2) | REGSETBYTE(b,2))) == 0)
+#define REGSETMATCH(a, b)   (REGSETOVERLAP(a, b) || REGSETEMPTY(a, b))
+
+// True when a 32-bit value does not fit in one, two or three bytes, signed or
+// unsigned -- what the truncation warnings ask about every initializer in a
+// DB/DW/DL list and about every 8-bit immediate. The bytes above the ones kept
+// have to be all zero, or all ones with the sign bit of the last kept byte
+// set. Written out like this for the same reason as REGSETMATCH(): a 32-bit
+// comparison on the eZ80 is a library call.
+#define VALUEBYTE(p, n)     (((const uint8_t *)(p))[n])
+#define OUTOFRANGE8(p)                                          \
+    (!(((VALUEBYTE(p,1) | VALUEBYTE(p,2) | VALUEBYTE(p,3)) == 0) || \
+       (((VALUEBYTE(p,1) & VALUEBYTE(p,2) & VALUEBYTE(p,3)) == 0xff) && (VALUEBYTE(p,0) >= 0x80))))
+#define OUTOFRANGE16(p)                                         \
+    (!(((VALUEBYTE(p,2) | VALUEBYTE(p,3)) == 0) ||              \
+       (((VALUEBYTE(p,2) & VALUEBYTE(p,3)) == 0xff) && (VALUEBYTE(p,1) >= 0x80))))
+#define OUTOFRANGE24(p)                                         \
+    (!((VALUEBYTE(p,3) == 0) ||                                 \
+       ((VALUEBYTE(p,3) == 0xff) && (VALUEBYTE(p,2) >= 0x80))))
 
 typedef struct {
     uint24_t        regsetA;            // one or more registers that need to match this operand

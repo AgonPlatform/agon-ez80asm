@@ -347,7 +347,7 @@ void emit_immediate(const operand_t *op, uint8_t suffix) {
     num = get_immediate_size(suffix);
     emit_8bit(op->immediate & 0xFF);
     emit_8bit((op->immediate >> 8) & 0xFF);
-    if(num == 2) validateRange16bit(op->immediate, op->immediate_name);
+    if(num == 2) validateRange16bit(&op->immediate, op->immediate_name);
     if(num == 3) emit_8bit((op->immediate >> 16) & 0xFF);
 }
 
