@@ -618,7 +618,7 @@ void handle_asm_data(uint8_t wordtype) {
 
     if(inConditionalSection == CONDITIONSTATE_FALSE) return;
 
-    definelabel(address);
+    DEFINELABEL(address);
 
     while(currentline.next) {
         if(getDefineValueToken(&token, currentline.next)) {
@@ -707,7 +707,7 @@ void handle_asm_equ(void) {
     value = getExpressionValue(token.start, REQUIRED_FIRSTPASS); // might return the value for $, a potentially relocated address
     bool tmprelocate = relocate;
     relocate = false;
-    definelabel(value); // define the value, not the relocated address
+    DEFINELABEL(value); // define the value, not the relocated address
     relocate = tmprelocate;
 }
 
@@ -772,7 +772,7 @@ void handle_asm_org(void) {
         error(message[ERROR_ADDRESSLOWER], 0);
         return;
     }
-    definelabel(address);
+    DEFINELABEL(address);
 
     // Skip filling if this is the first .org statement
     if(address == start_address) {
@@ -821,7 +821,7 @@ void handle_asm_include(void) {
         error(message[ERROR_RECURSIVEINCLUDE],0);
         return;
     }
-    definelabel(address);
+    DEFINELABEL(address);
     if((listing) && (pass == ENDPASS)) listEndLine();
     processContent(token.start+1);
     sourcefilecount++;
@@ -854,7 +854,7 @@ void handle_asm_incbin(void) {
     }
     token.start[strlen(token.start)-1] = 0;
 
-    definelabel(address);
+    DEFINELABEL(address);
 
     // Prepare content
     if((ci = findContent(token.start+1)) == NULL) {
@@ -919,7 +919,7 @@ void handle_asm_blk(uint8_t width) {
 
     if(inConditionalSection == CONDITIONSTATE_FALSE) return;
 
-    definelabel(address);
+    DEFINELABEL(address);
 
     if(!currentline.next) {
         error(message[ERROR_MISSINGARGUMENT],0);
@@ -1012,7 +1012,7 @@ uint24_t delta;
     remaining_dsspaces += delta;
     address = base;
 
-    definelabel(address); // set address to current line
+    DEFINELABEL(address); // set address to current line
 }
 
 void handle_asm_definemacro(void) {
@@ -1024,7 +1024,7 @@ void handle_asm_definemacro(void) {
 
     if(inConditionalSection == CONDITIONSTATE_FALSE) return;
 
-    definelabel(address);
+    DEFINELABEL(address);
 
     macrobuffer = readMacroBody(currentcontentitem); // dynamically allocated during STARTPASS
 
@@ -1043,7 +1043,7 @@ void handle_asm_cpu(void) {
 
     if(inConditionalSection == CONDITIONSTATE_FALSE) return;
 
-    definelabel(address);
+    DEFINELABEL(address);
 
     if(!currentline.next || (getOperandToken(&token, currentline.next) == 0)) {
         error(message[ERROR_MISSINGARGUMENT],0);
@@ -1237,7 +1237,7 @@ void processInstructions(void){
     bool match;
     bool condmatch;
 
-    if((currentline.mnemonic == NULL) && (inConditionalSection != CONDITIONSTATE_FALSE)) definelabel(address);
+    if((currentline.mnemonic == NULL) && (inConditionalSection != CONDITIONSTATE_FALSE)) DEFINELABEL(address);
 
     if(currentline.current_instruction) {
         if(currentline.current_instruction->type == EZ80) {
@@ -1299,7 +1299,7 @@ void processMacro(void) {
     localexpandedmacro->currentExpandID = localmacroExpandID;
 
     // Check for defined label
-    definelabel(address);
+    DEFINELABEL(address);
 
     // potentially transform arguments first, when calling from within a macro
     if(currentExpandedMacro) {

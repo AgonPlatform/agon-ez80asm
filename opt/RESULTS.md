@@ -299,3 +299,34 @@ without doing anything: `prefix_ddfd_suffix()`, which begins by checking
 
 Geomean 2.834x (1.680x without adl0label), whole set 2.194x. Binary 56255
 bytes.
+
+## 13. Ask before calling definelabel() as well
+
+`definelabel()` has nothing to do when the line carries no label: pass 1
+returns immediately, and pass 2 only ever sets the label scope. Most lines
+carry no label, and `emit_instruction()` calls it for every instruction it
+emits. `DEFINELABEL()` puts the test at the call site.
+
+| source | seconds | x |
+|---|---|---|
+| opcodes_l | 0.2400 | 2.208 |
+| z80_undoc | 0.7600 | 1.428 |
+| binarytest | 1.1500 | 1.417 |
+| adl0label | 0.1700 | 41.0 |
+| rokky | 1.5600 | 1.603 |
+| bbcbasic (-m) | 11.9400 | 1.883 |
+
+Geomean 2.865x (1.683x without adl0label), whole set 2.225x. Binary 56408
+bytes.
+
+opcodes_l goes the other way by a hundredth of a second, on a source that is
+almost entirely labelled lines, where the added test never saves the call.
+
+## Tried and dropped: an arithmetic ISMNEMONICEND()
+
+`ISMNEMONICEND()` asks four questions -- zero, space, ':' and ';' -- and
+`ISSPACE()` had just shown that comparisons beat a table index. Written as four
+comparisons it was slower on every source that moved: opcodes_l 0.235s against
+0.230s, binarytest 1.170s against 1.160s, bbcbasic 12.16s against 12.12s. Two
+comparisons beat a table lookup here and four do not, which puts the boundary
+somewhere in between, and the table stays.

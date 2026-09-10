@@ -202,7 +202,7 @@ void emit_instruction(const operandlist_t *list) {
        return;
     }
 
-    definelabel(address);
+    DEFINELABEL(address);
 
     // issue any warnings here
     if((list->transformA != TRANSFORM_REL) && (list->transformB != TRANSFORM_REL)) { // TRANSFORM_REL will mask to 0xFF
