@@ -779,8 +779,19 @@ void handle_asm_org(void) {
         address = newaddress;
         return;
     }
-    // Fill bytes on any subsequent .org statement
-    while(address != newaddress) emit_8bit(fillbyte);
+    // Fill bytes on any subsequent .org statement. A listing has to see each
+    // byte go by, but without one the gap is just a run of fillbyte and the
+    // output buffer can take it in blocks.
+    if(listing) {
+        while(address != newaddress) emit_8bit(fillbyte);
+    }
+    else if(address != newaddress) {
+        if(pass == ENDPASS) {
+            ioFlushDSSpaces();
+            io_outputfill(fillbyte, newaddress - address);
+        }
+        address = newaddress;
+    }
 }
 
 void handle_asm_include(void) {

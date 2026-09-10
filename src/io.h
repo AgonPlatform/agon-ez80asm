@@ -17,7 +17,8 @@ uint24_t ioGetfilesize(FILE *fh);
 void ioWrite(uint8_t fh, const char *s, uint24_t size);
 bool ioInit(const char *input_filename, const char *output_filename); // init - called once at start
 void ioClose(void);                                // close everything at end, do cleanup
-void ioPutc(uint8_t fh, unsigned char c);          // buffered write of a single byte / fallback
+void ioPutc(uint8_t fh, unsigned char c);
+void io_outputfill(unsigned char c, uint24_t count); // buffered write of a run of one byte          // buffered write of a single byte / fallback
 int  ioPuts(uint8_t fh, const char *s);                  // buffered write of a string / fallback
 void ioFlushDSSpaces(void);
 void emit_8bit(uint8_t value);
