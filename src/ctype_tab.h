@@ -28,13 +28,16 @@
 #define OPERATOR_BINARY         2   // + and -, which may also be unary
 #define OPERATOR_NEVERUNARY     3   // * / < > & | ^
 
-extern const uint8_t ctype_space[256];
 extern const uint8_t ctype_lower[256];
 extern const uint8_t ctype_mnemonicend[256];
 extern const uint8_t ctype_operator[256];
 extern const uint8_t ctype_exprend[256];
 
-#define ISSPACE(c)          (ctype_space[(uint8_t)(c)])
+// Space is 0x20, or one of the five in 0x09-0x0D. Two comparisons, and the
+// second folds into a subtract and a compare, which is less work than indexing
+// a table: the loop that skips a line's indentation is the busiest in the
+// assembler. Evaluates its argument twice, so hand it a plain character.
+#define ISSPACE(c)          (((uint8_t)(c) == ' ') || ((uint8_t)((uint8_t)(c) - 0x09) <= 0x04))
 #define TOLOWER(c)          (ctype_lower[(uint8_t)(c)])
 
 // Ends a mnemonic: whitespace, a comment, a label colon, or end of line.
