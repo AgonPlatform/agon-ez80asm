@@ -1247,8 +1247,8 @@ void processInstructions(void){
                 list = currentline.current_instruction->list;
                 match = false;
                 for(listitem = 0; listitem < currentline.current_instruction->listnumber; listitem++) {
-                    regamatch = (list->regsetA & operand1.reg) || !(list->regsetA | operand1.reg);
-                    regbmatch = (list->regsetB & operand2.reg) || !(list->regsetB | operand2.reg);
+                    regamatch = REGSETMATCH(&list->regsetA, &operand1.reg);
+                    regbmatch = REGSETMATCH(&list->regsetB, &operand2.reg);
 
                     condmatch = ((list->conditionsA & MODECHECK) == operand1.addressmode) && ((list->conditionsB & MODECHECK) == operand2.addressmode);
                     if(list->flags & F_CCOK) {
