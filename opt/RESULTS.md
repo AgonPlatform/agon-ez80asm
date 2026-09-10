@@ -279,3 +279,23 @@ The set is chosen for what changed: line lengths at 256 and 257 characters and
 with CRLF endings for the rewritten line readers, truncated and wide immediates
 for the range macros, DS and ORG fills for the block writer, three listings for
 the paths that keep their character-at-a-time loop, and bbcbasic under `-m`.
+
+## 12. Ask before calling a function that will do nothing
+
+`emit_instruction()` made three calls per instruction that mostly return
+without doing anything: `prefix_ddfd_suffix()`, which begins by checking
+`F_DDFDOK` -- two thirds of encodings do not have it -- and
+`transform_instruction()` twice, three quarters of whose transform slots are
+`TRANSFORM_NONE`. The tests move to the call site.
+
+| source | seconds | x |
+|---|---|---|
+| opcodes_l | 0.2300 | 2.304 |
+| z80_undoc | 0.7700 | 1.409 |
+| binarytest | 1.1600 | 1.405 |
+| adl0label | 0.1800 | 38.7 |
+| rokky | 1.5800 | 1.582 |
+| bbcbasic (-m) | 12.1200 | 1.855 |
+
+Geomean 2.834x (1.680x without adl0label), whole set 2.194x. Binary 56255
+bytes.
