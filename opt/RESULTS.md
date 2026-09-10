@@ -88,3 +88,28 @@ geomean is 1.24x.
 `opt/verify.sh` now assembles every source twice, plainly and with `-l`, and
 compares the whole output directory -- binary, listing and label file -- plus
 the console output with the timing line removed.
+
+## 4. Classify characters with tables, not calls and chains
+
+Three things in the same vein:
+
+* `while(*src && ISSPACE(*src))` tests for end of string as well as for space,
+  but zero is not a space, so the first test never decides anything. Dropped.
+* The mnemonic scan asked four questions per character -- space, `;`, `:`,
+  zero. One table answers all four at once.
+* The expression parser called `strchr()` on a literal string for every
+  operator test, including one inside the loop that reads a name. Three tables
+  replace those, keeping `strchr(set, 0)`'s quiet habit of returning the set's
+  own terminator, which the parser depends on at end of string.
+
+| source | seconds | x |
+|---|---|---|
+| opcodes_l | 0.4950 | 1.071 |
+| z80_undoc | 0.9250 | 1.173 |
+| binarytest | 1.3350 | 1.221 |
+| adl0label | 0.1700 | 41.0 |
+| rokky | 1.8000 | 1.389 |
+| bbcbasic (-m) | 14.3200 | 1.570 |
+
+Geomean 2.271x (1.273x without adl0label), whole set 1.848x. Binary 56964
+bytes.

@@ -144,13 +144,13 @@ uint8_t getMnemonicToken(streamtoken_t *token, char *src) {
     uint8_t length = 0;
 
     // skip leading space
-    while(*src && (ISSPACE(*src))) src++;
+    while(ISSPACE(*src)) src++;
     if(*src == 0) {
         memset(token, 0, sizeof(streamtoken_t));
         return 0;
     }
     token->start = src;
-    while(!ISSPACE(*src) && (*src != ';') && (*src != ':') && *src) {
+    while(!ISMNEMONICEND(*src)) {
         length++;
         src++;
     }
@@ -169,7 +169,7 @@ uint8_t getOperandToken(streamtoken_t *token, char *src) {
     bool inliteral = false;
 
     // skip leading space
-    while(*src && (ISSPACE(*src))) src++;
+    while(ISSPACE(*src)) src++;
     if(*src == 0) {
         memset(token, 0, sizeof(streamtoken_t));
         return 0;
@@ -239,7 +239,7 @@ uint8_t getDefineValueToken(streamtoken_t *token, char *src) {
     bool terminated;
 
     // skip leading space
-    while(*src && (ISSPACE(*src))) src++;
+    while(ISSPACE(*src)) src++;
     if(*src == 0) {
         memset(token, 0, sizeof(streamtoken_t));
         return 0;
@@ -503,7 +503,7 @@ int32_t getExpressionValue(char *str, requiredResult_t requiredPass) {
                     error(message[ERROR_MISSINGLABELORNUMBER],"%s",errptr);
                     return 0;
                 }
-                if(strchr("+-*/<>&|^~", *str)) {
+                if(ISOPERATOR(*str)) {
                     error(message[ERROR_UNARYOPERATOR],0);
                     return 0;
                 }
@@ -519,7 +519,7 @@ int32_t getExpressionValue(char *str, requiredResult_t requiredPass) {
                 }
                 unaryoperator = 0;
                 operator = *str++;
-                if(strchr("+-*/<>&|^", operator) == 0) { // illegal operator
+                if(!ISBINARYOPERATOR(operator)) { // illegal operator
                     error(message[ERROR_OPERATOR], "%c", operator);
                     return 0;
                 }
@@ -528,14 +528,14 @@ int32_t getExpressionValue(char *str, requiredResult_t requiredPass) {
                     error(message[ERROR_MISSINGLABELORNUMBER],"%s",errptr);
                     return 0;
                 }
-                if(strchr("*/<>&|^", *str)) { // illegal unary
+                if(ISNEVERUNARY(*str)) { // illegal unary
                     error(message[ERROR_UNARYOPERATOR], 0);
                     return 0;
                 }
                 state = START;
                 // implicit fall-through for performance
             case START:
-                if(strchr("+-*/<>&|^~", *str)) {
+                if(ISOPERATOR(*str)) {
                     if((*str == '-') || (*str == '~') || (*str == '+')) {
                         state = UNARY;
                         break;
@@ -564,7 +564,7 @@ int32_t getExpressionValue(char *str, requiredResult_t requiredPass) {
                         str = token.next;
                         break;
                     default:
-                        while(!strchr("+-*/<>&|^~\t ", *str)) *bufptr++ = *str++;
+                        while(!ISEXPRESSIONEND(*str)) *bufptr++ = *str++;
                         *bufptr = 0; // terminate string in buffer
                         tmp = resolveNumber(buffer, bufptr - buffer, requiredPass);
                         break;
