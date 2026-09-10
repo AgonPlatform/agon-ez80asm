@@ -246,3 +246,22 @@ place leaves only the flush, once every 32 KB.
 
 Geomean 2.802x (1.638x without adl0label), whole set 2.151x. Binary 56234
 bytes.
+
+## 11. Ask about the literal flag only when it can matter
+
+`getOperandToken()` tested the in-a-literal flag for every character of every
+operand, to decide whether a comma ends the token -- but only three characters
+can end anything, so ordinary ones can get past on three comparisons with no
+state to load. The flag is consulted when one of the three turns up.
+
+| source | seconds | x |
+|---|---|---|
+| opcodes_l | 0.2450 | 2.163 |
+| z80_undoc | 0.7650 | 1.418 |
+| binarytest | 1.1850 | 1.376 |
+| adl0label | 0.1700 | 41.0 |
+| rokky | 1.6000 | 1.562 |
+| bbcbasic (-m) | 12.3000 | 1.828 |
+
+Geomean 2.812x (1.645x without adl0label), whole set 2.164x. Binary 56231
+bytes.
