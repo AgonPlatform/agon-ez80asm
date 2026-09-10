@@ -365,3 +365,59 @@ comparisons it was slower on every source that moved: opcodes_l 0.235s against
 0.230s, binarytest 1.170s against 1.160s, bbcbasic 12.16s against 12.12s. Two
 comparisons beat a table lookup here and four do not, which puts the boundary
 somewhere in between, and the table stays.
+
+## 14. Refill so the buffer ends on a line boundary
+
+Under `-m` the reader refilled when it ran out of bytes, which happens in the
+middle of a line, so it had to copy the front of the line, refill, and carry on
+-- an outer loop, a running length, and a moving destination, all for the sake
+of one line in every bufferful.
+
+`_fillLineBuffer()` moves the decision to the refill. Whatever the last read
+left after its final newline is carried to the front of the buffer, and the
+usable end is pulled back to the last newline in what is now there, so every
+line in the buffer is whole. The reader becomes a memchr(), a memcpy() and no
+loop at all. At end of file, a short read means what is left is the last line,
+newline or not, and there is nothing to pull back to.
+
+| source | seconds | x |
+|---|---|---|
+| opcodes_l | 0.2350 | 2.255 |
+| z80_undoc | 0.7600 | 1.428 |
+| binarytest | 1.1500 | 1.417 |
+| adl0label | 0.1900 | 36.7 |
+| rokky | 1.5600 | 1.603 |
+| bbcbasic (-m) | 11.6400 | 1.931 |
+
+Geomean 2.836x (1.694x without adl0label), whole set 2.244x. Binary 56597
+bytes. Nothing but bbcbasic uses `-m`; adl0label reads 0.19s against 0.17s,
+which is two hundredths on a source that finishes in a fifth of a second.
+
+The buffer has to be larger than `LINEMAX` for this: a full buffer with no
+newline in it then means one line is longer than a line is allowed to be,
+which is exactly the case the character-at-a-time path is kept for. At 1 KiB
+and 4 KiB it is, by a wide margin.
+
+`opt/verify.sh` now assembles every source four ways -- plainly, `-l`, `-m` and
+both -- because `-m` is a different reader and nothing else was exercising it.
+The refill logic was also run with the buffer cut to 512 bytes, so that the
+carry path fires every fifteen lines or so: 561 of 561 still agree.
+
+## 15. A 4 KiB input buffer for -m
+
+With the refill above in place, buying more buffer is worth less than it was,
+and it was not worth much:
+
+| INPUT_BUFFERSIZE | before section 14 | after |
+|---|---|---|
+| 1024 | 11.9400 | 11.6400 |
+| 4096 | 11.8400 | 11.5200 |
+
+The buffer is a local of `processContent()`, which recurses once per include,
+so the memory to compare is `MAXPROCESSDEPTH` copies of it: 8 KiB against
+32 KiB. Four times the memory buys 1%, in the mode whose whole purpose is not
+using memory -- and a 1 KiB buffer with the trimmed refill already beats a
+4 KiB buffer without it. It is separated out so it can be taken or left on its
+own.
+
+Geomean 2.845x, whole set 2.257x.

@@ -37,6 +37,13 @@ line257|$ZAP/test/regress/limits/tests|line_257.s|
 linelong|$ZAP/test/regress/limits/tests|line_code_long.s|
 crlf255|$ZAP/test/regress/limits/tests|line_crlf_255.s|
 crlf256|$ZAP/test/regress/limits/tests|line_crlf_256.s|
+line256m|$ZAP/test/regress/limits/tests|line_256.s| -m
+line257m|$ZAP/test/regress/limits/tests|line_257.s| -m
+linelongm|$ZAP/test/regress/limits/tests|line_code_long.s| -m
+crlf255m|$ZAP/test/regress/limits/tests|line_crlf_255.s| -m
+crlf256m|$ZAP/test/regress/limits/tests|line_crlf_256.s| -m
+opcodesm|$ZAP/test/corpus/Opcodes/tests|opcodes_l.s| -m
+rokkym|$ZAP/test/corpus/Z_PRG_Agon-Rokky/tests|rokky.s| -m
 immtrunc|$ZAP/test/regress/values/tests|imm_truncated.s|
 immwide|$ZAP/test/regress/values/tests|imm_wide.s|
 fills|$ZAP/test/regress/values/tests|fills.s|

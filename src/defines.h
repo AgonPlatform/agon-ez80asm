@@ -163,6 +163,8 @@ typedef struct contentitem {
     char            labelscope[MAXNAMELENGTH+1];
     uint8_t         inConditionalSection;
     unsigned int    bytesinbuffer;                // only used during minimal input buffering
+    unsigned int    rawinbuffer;                  // bytes actually read into it, which is bytesinbuffer plus the
+                                                  // partial line past the last newline, carried to the front on refill
 } contentitem_t;
 
 typedef struct {
