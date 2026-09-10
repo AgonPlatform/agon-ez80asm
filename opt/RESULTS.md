@@ -169,3 +169,23 @@ value it holds in registers, the compiler produced the bytes the macro asked
 for with 32-bit shifts -- `__lshru`, `__ishru`, `__land`, more library calls
 than the comparison it replaced -- and the first attempt cost bbcbasic 1.8%.
 Passing an address leaves it no choice but to load the bytes.
+
+## 7. Reject a candidate encoding on the cheapest test
+
+The matcher computed all three of its tests for every candidate encoding before
+looking at any of them. The addressing-mode test is two byte comparisons and
+rules out nearly every candidate; the register-set tests are six byte loads
+apiece. Testing the modes first and moving on when they disagree does the same
+work in the same order, and stops early.
+
+| source | seconds | x |
+|---|---|---|
+| opcodes_l | 0.2500 | 2.120 |
+| z80_undoc | 0.8000 | 1.356 |
+| binarytest | 1.2500 | 1.304 |
+| adl0label | 0.1700 | 41.0 |
+| rokky | 1.7100 | 1.462 |
+| bbcbasic (-m) | 12.8600 | 1.748 |
+
+Geomean 2.706x (1.571x without adl0label), whole set 2.065x. Binary 56874
+bytes.
