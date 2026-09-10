@@ -41,10 +41,9 @@ uint8_t get_ddfd_prefix(const uint24_t *reg) {
     return 0;
 }
 
+// The caller has already checked F_DDFDOK.
 void prefix_ddfd_suffix(const operandlist_t *op) {
     uint8_t prefix1, prefix2;
-
-    if(!(op->flags & F_DDFDOK)) return;
 
     prefix1 = get_ddfd_prefix(&operand1.reg);
     prefix2 = get_ddfd_prefix(&operand2.reg);
@@ -221,10 +220,13 @@ void emit_instruction(const operandlist_t *list) {
     if((list->transformA == TRANSFORM_N) && (operand1.immediate & 0x47)) error(message[ERROR_ILLEGALRESTARTADDRESS],"%s",operand1.immediate_name);
 
     // prepare extra DD/FD suffix if needed
-    prefix_ddfd_suffix(list);
+    // Both of these begin by deciding they have nothing to do for most
+    // encodings -- two thirds have no DD/FD form, three quarters of the
+    // transform slots are TRANSFORM_NONE -- so ask before calling.
+    if(list->flags & F_DDFDOK) prefix_ddfd_suffix(list);
     // Transform the opcode and potential immediate values, according to the current ruleset
-    transform_instruction(&operand1, (uint8_t)list->transformA);
-    transform_instruction(&operand2, (uint8_t)list->transformB);
+    if(list->transformA != TRANSFORM_NONE) transform_instruction(&operand1, (uint8_t)list->transformA);
+    if(list->transformB != TRANSFORM_NONE) transform_instruction(&operand2, (uint8_t)list->transformB);
     // determine position of dd
     ddbeforeopcode = (((output.prefix1 == 0xDD) || (output.prefix1 == 0xFD)) && (output.prefix2 == 0xCB) &&
                 (list->flags & (F_DISPA|F_DISPB)));
