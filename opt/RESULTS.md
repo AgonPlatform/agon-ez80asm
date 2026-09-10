@@ -189,3 +189,31 @@ work in the same order, and stops early.
 
 Geomean 2.706x (1.571x without adl0label), whole set 2.065x. Binary 56874
 bytes.
+
+## 8. Test for space with arithmetic, not the table
+
+The loop that skips a line's indentation is the busiest in the assembler: a
+profile of bbcbasic puts 6% of everything inside it, and the source it is
+reading is indented eight spaces a line. Asking `ctype_space[c]` costs a
+24-bit immediate load, a zero-extend, a 24-bit add and a load, every character.
+Asking whether the character is 0x20, or lands in 0x09-0x0D once 9 is
+subtracted, is two compares on 8-bit registers.
+
+| source | seconds | x |
+|---|---|---|
+| opcodes_l | 0.2500 | 2.120 |
+| z80_undoc | 0.7800 | 1.391 |
+| binarytest | 1.2050 | 1.353 |
+| adl0label | 0.1800 | 38.7 |
+| rokky | 1.6300 | 1.534 |
+| bbcbasic (-m) | 12.5000 | 1.798 |
+
+Geomean 2.743x (1.616x without adl0label), whole set 2.127x. Binary 56422
+bytes.
+
+Counting instructions would have picked the wrong one: the table loop is nine
+instructions and the arithmetic loop twelve. What the table costs is bytes --
+two 4-byte immediates per character -- and an access to memory the compare does
+not need. The other classification tables stay; they answer questions with more
+cases than two, and the space test is the only one running per character of the
+indentation.
