@@ -9,11 +9,14 @@
 # tests plus zap's, which between them cover what each assembler was written to
 # check.
 #
-# Each source is assembled twice by each binary, once plainly and once with -l,
-# and the whole working directory is compared afterwards -- the binary, the
-# listing and the anonymous-label file together. The console output is compared
-# too, with the timing line dropped, so a change that alters a diagnostic is
-# caught even when it does not alter a byte.
+# Each source is assembled four times by each binary -- plainly, with -l, with
+# -m, and with both -- and the whole working directory is compared afterwards:
+# the binary, the listing and the anonymous-label file together. The console
+# output is compared too, with the timing line dropped, so a change that alters
+# a diagnostic is caught even when it does not alter a byte.
+#
+# -m is in the list because it is a different reader, with its own buffer
+# refilling, and nothing else exercises it.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -36,7 +39,7 @@ for d in $DIRS; do
         [ -f "$src" ] || continue
         base=$(basename "$src")
         bad=""
-        for flags in "-c" "-c -l"; do
+        for flags in "-c" "-c -l" "-c -m" "-c -m -l"; do
             rm -rf "$W/a" "$W/b"; mkdir -p "$W/a" "$W/b"
             cp -r "$d"/* "$W/a/" 2>/dev/null; cp -r "$d"/* "$W/b/" 2>/dev/null
             (cd "$W/a" && timeout 60 "$STOCK" "$base" out.bin $flags 2>&1 | grep -v '^Done in ' > s.log)
@@ -53,7 +56,7 @@ for d in $DIRS; do
 done
 
 echo "-----"
-echo "$total sources, plain and -l"
+echo "$total sources, each plain, -l, -m and -m -l"
 echo "  $same agree"
 echo "  $differ differ"
 exit $([ "$differ" -eq 0 ] && echo 0 || echo 1)

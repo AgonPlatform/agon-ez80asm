@@ -699,60 +699,101 @@ uint16_t _readFullBufferedLine(char *dst1, contentitem_t *ci) {
 }
 
 // Used with '-m' minimum buffered configuration
-// Reads content into the ci->buffer, gets a LINE from it and returns it's length
-uint16_t _readMinimumBufferedLine(char *dst, contentitem_t *ci) {
-    uint16_t len = 0;
-    char *ptr = ci->readptr;
-    bool done = false;        
+//
+// Refills the buffer so that it ends on a line boundary: whatever the last
+// read left after its final newline is carried to the front, the file is read
+// into the rest, and the usable end is pulled back to the last newline in what
+// is now there. Every line in the buffer is then whole, which is what lets the
+// reader below take one with a single memchr() and a single memcpy() and no
+// loop -- a line cannot span a refill, so there is no partial line to carry
+// around in the reader itself.
+//
+// Returns false at end of file, when nothing is left to read.
+bool _fillLineBuffer(contentitem_t *ci) {
+    unsigned int carry = ci->rawinbuffer - (unsigned int)(ci->readptr - ci->buffer);
+    unsigned int got;
+    unsigned int n;
 
-    while(!done) {
-        if(ci->bytesinbuffer == 0) { // fill buffer
-            ci->bytesinbuffer = fread(ci->buffer, 1, INPUT_BUFFERSIZE, ci->fh);
-            ci->readptr = ci->buffer;
-            ptr = ci->buffer;
-            if(ci->bytesinbuffer == 0) done = true;
-        }
-        else {
-            unsigned int left = ci->bytesinbuffer;
-            char *end;
-            uint24_t run;
+    if(carry) memmove(ci->buffer, ci->readptr, carry);
+    got = fread(ci->buffer + carry, 1, INPUT_BUFFERSIZE - carry, ci->fh);
+    ci->readptr = ci->buffer;
+    ci->rawinbuffer = carry + got;
 
-            ptr = ci->readptr;
-            // Whatever the buffer holds up to and including the next newline;
-            // without one, everything left, and the outer loop refills.
-            end = memchr(ptr, '\n', left);
-            run = end ? (uint24_t)(end - ptr) + 1 : left;
+    if(ci->rawinbuffer == 0) {
+        ci->bytesinbuffer = 0;
+        return false;
+    }
 
-            if(LINERUNFITS(len, run, end != NULL)) {
-                memcpy(dst, ptr, run);
-                dst += run;
-                ptr += run;
-                left -= run;
-                len += run;
-                if(end) done = true;
-            }
-            else {
-                while(left) {
-                    char c;
-                    if((len++ == LINEMAX) && (*ptr != '\n')) {
-                        ci->bytesinbuffer = left;
-                        error(message[ERROR_LINETOOLONG],0);
-                        return 0;
-                    }
-                    left--;
-                    c = *ptr++;
-                    *dst++ = c;
-                    if(c == '\n') {
-                        done = true;
-                        break;
-                    }
-                }
-            }
-            ci->bytesinbuffer = left;
+    // A read shorter than asked for is the end of the file. What is left is
+    // the last line, which needs no newline to be a line, so there is nothing
+    // to pull back to.
+    if(got < INPUT_BUFFERSIZE - carry) {
+        ci->bytesinbuffer = ci->rawinbuffer;
+        return true;
+    }
+
+    for(n = ci->rawinbuffer; n > 0; n--) {
+        if(ci->buffer[n - 1] == '\n') {
+            ci->bytesinbuffer = n;
+            return true;
         }
     }
+
+    // A full buffer with no newline in it: one line is longer than the buffer,
+    // which is longer than LINEMAX, so the reader is about to complain about
+    // it. Hand the whole thing over and let it.
+    ci->bytesinbuffer = ci->rawinbuffer;
+    return true;
+}
+
+// Reads a LINE from the buffer and returns its length
+uint16_t _readMinimumBufferedLine(char *dst, contentitem_t *ci) {
+    uint16_t len = 0;
+    char *ptr;
+    char *end;
+    uint24_t run;
+
+    if((ci->bytesinbuffer == 0) && !_fillLineBuffer(ci)) {
+        *dst = 0;
+        ci->lastreadlength = 0;
+        return 0;
+    }
+
+    ptr = ci->readptr;
+    end = memchr(ptr, '\n', ci->bytesinbuffer);
+    run = end ? (uint24_t)(end - ptr) + 1 : ci->bytesinbuffer;
+
+    if(LINERUNFITS(0, run, end != NULL)) {
+        memcpy(dst, ptr, run);
+        dst += run;
+        ptr += run;
+        len = run;
+        ci->readptr = ptr;
+        ci->bytesinbuffer -= run;
+    }
+    else {
+        // Too long. This is the path that has to report where it stopped, so
+        // it still goes a character at a time and leaves the buffer where it
+        // left off.
+        unsigned int left = ci->bytesinbuffer;
+
+        while(left) {
+            char c;
+            if((len++ == LINEMAX) && (*ptr != '\n')) {
+                ci->bytesinbuffer = left;
+                error(message[ERROR_LINETOOLONG],0);
+                return 0;
+            }
+            left--;
+            c = *ptr++;
+            *dst++ = c;
+            if(c == '\n') break;
+        }
+        ci->readptr = ptr;
+        ci->bytesinbuffer = left;
+    }
+
     *dst = 0;
-    ci->readptr = ptr;
     ci->filepos += len;
     ci->lastreadlength = len;
     return len;

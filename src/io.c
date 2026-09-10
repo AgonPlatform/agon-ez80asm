@@ -370,7 +370,11 @@ void seekContentInput(contentitem_t *ci, uint24_t position) {
         ci->readptr = ci->buffer + position;
     }
     else {
-        ci->bytesinbuffer = 0; // reset buffer
+        // Reset the buffer, the carried partial line with it: the seek is
+        // absolute, so nothing already read is worth keeping.
+        ci->bytesinbuffer = 0;
+        ci->rawinbuffer = 0;
+        ci->readptr = ci->buffer;
         if(fseek(ci->fh, position, SEEK_SET)) {
             error(message[ERROR_FILEIO],"%s",ci->name);
             return;
@@ -382,6 +386,7 @@ void openContentInput(contentitem_t *ci, char *buffer) {
     if(!completefilebuffering) {
         ci->buffer = buffer;
         ci->bytesinbuffer = 0;
+        ci->rawinbuffer = 0;
         ci->fh = ioOpenfile(ci->name, "rb");
         if(ci->fh == 0) return;
         ci->size = ioGetfilesize(ci->fh);
