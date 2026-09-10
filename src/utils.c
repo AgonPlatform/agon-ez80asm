@@ -177,18 +177,24 @@ uint8_t getOperandToken(streamtoken_t *token, char *src) {
     token->start = src;
 
     // hunt for end-character (0 , or ; in normal non-literal mode)
+    //
+    // Only three characters can matter, so ordinary ones get past on three
+    // comparisons with no state to load; the literal flag is only consulted
+    // once one of the three turns up.
     while(*src) {
-        if(*src == '\'') {
-            if(inliteral) {
-                if(*(src+1) == '\'') {
-                    src++;
-                    length++;
+        if((*src == ',') || (*src == ';') || (*src == '\'')) {
+            if(*src == '\'') {
+                if(inliteral) {
+                    if(*(src+1) == '\'') {
+                        src++;
+                        length++;
+                    }
+                    inliteral = false;
                 }
-                inliteral = false;
-            } 
-            else inliteral = true;
+                else inliteral = true;
+            }
+            else if(!inliteral) break;
         }
-        if(!inliteral && ((*src == ',') || (*src == ';'))) break;
         src++;
         length++;
     }
