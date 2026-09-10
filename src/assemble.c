@@ -1236,7 +1236,6 @@ void processInstructions(void){
     uint8_t listitem;
     bool match;
     bool condmatch;
-    bool regamatch, regbmatch;
 
     if((currentline.mnemonic == NULL) && (inConditionalSection != CONDITIONSTATE_FALSE)) definelabel(address);
 
@@ -1246,25 +1245,31 @@ void processInstructions(void){
                 // process this mnemonic by applying the instruction list as a filter to the operand-set
                 list = currentline.current_instruction->list;
                 match = false;
-                for(listitem = 0; listitem < currentline.current_instruction->listnumber; listitem++) {
-                    regamatch = REGSETMATCH(&list->regsetA, &operand1.reg);
-                    regbmatch = REGSETMATCH(&list->regsetB, &operand2.reg);
-
+                for(listitem = 0; listitem < currentline.current_instruction->listnumber; listitem++, list++) {
+                    // Cheapest test first, and reject on it. A mnemonic like LD
+                    // has around a hundred candidate encodings and the addressing
+                    // modes rule out nearly all of them in a couple of byte
+                    // comparisons, which is a good deal less work than comparing
+                    // two register sets.
                     condmatch = ((list->conditionsA & MODECHECK) == operand1.addressmode) && ((list->conditionsB & MODECHECK) == operand2.addressmode);
                     if(list->flags & F_CCOK) {
-                        condmatch |= operand1.cc;
-                        regamatch = true;
+                        // Takes a condition code, and then it matches whatever
+                        // register operand A names.
+                        if(!(condmatch || operand1.cc)) continue;
                     }
-                    if(regamatch && regbmatch && condmatch) {
-                        match = true;
-                        if(!(cputype & list->cpu)) {
-                            errorCPUtype(ERROR_INVALID_CPU_INSTRUCTION);
-                            break;
-                        }
-                        emit_instruction(list);
+                    else {
+                        if(!condmatch) continue;
+                        if(!REGSETMATCH(&list->regsetA, &operand1.reg)) continue;
+                    }
+                    if(!REGSETMATCH(&list->regsetB, &operand2.reg)) continue;
+
+                    match = true;
+                    if(!(cputype & list->cpu)) {
+                        errorCPUtype(ERROR_INVALID_CPU_INSTRUCTION);
                         break;
                     }
-                    list++;
+                    emit_instruction(list);
+                    break;
                 }
                 if(!match) error(message[ERROR_OPERANDSNOTMATCHING],0);
                 return;
