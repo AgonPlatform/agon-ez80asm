@@ -217,3 +217,12 @@ two 4-byte immediates per character -- and an access to memory the compare does
 not need. The other classification tables stay; they answer questions with more
 cases than two, and the space test is the only one running per character of the
 indentation.
+
+## 9. Fold case with arithmetic too
+
+`TOLOWER()` gets the same treatment as `ISSPACE()`: a compare and an add rather
+than a table index. It runs per character of every mnemonic on the way into the
+instruction hash. A small change -- bbcbasic 12.50s to 12.48s, rokky 1.63s to
+1.62s, nothing else moved -- and 234 bytes off the binary, so it stays.
+
+Binary 56188 bytes. Geomean 2.747x, whole set 2.129x.
