@@ -9,28 +9,29 @@ Seconds, lower is better. `x` is stock / this build.
 
 ## Where it ends up
 
-Thirteen changes, each measured on its own and each leaving the output
+Fifteen changes, each measured on its own and each leaving the output
 identical. None of them changes how the assembler works: still two passes,
 still the same files, the same structures and the same order of decisions.
 
 | source | stock v2.2 | now | x |
 |---|---|---|---|
-| opcodes_l | 0.5300 | 0.2400 | 2.21 |
+| opcodes_l | 0.5300 | 0.2350 | 2.26 |
 | z80_undoc | 1.0850 | 0.7600 | 1.43 |
 | binarytest | 1.6300 | 1.1500 | 1.42 |
-| adl0label | 6.9700 | 0.1700 | 41.0 |
-| rokky | 2.5000 | 1.5600 | 1.60 |
-| bbcbasic (-m) | 22.4800 | 11.9400 | 1.88 |
-| **total** | **35.1950** | **15.8200** | **2.22** |
+| adl0label | 6.9700 | 0.1900 | 36.7 |
+| rokky | 2.5000 | 1.5500 | 1.61 |
+| bbcbasic (-m) | 22.4800 | 11.5200 | 1.95 |
+| **total** | **35.1950** | **15.4050** | **2.28** |
 
-Geomean 2.86x, or 1.68x leaving adl0label out -- that source spends nearly all
+Geomean 2.85x, or 1.69x leaving adl0label out -- that source spends nearly all
 of its time filling an ORG gap, and 41x is what writing that gap in blocks
-rather than a byte at a time is worth. Binary 55601 -> 56408 bytes.
+rather than a byte at a time is worth. Binary 55601 -> 56597 bytes.
 
 What did the work, roughly in order of what it was worth:
 
 1. Writing runs of bytes in blocks (ORG fills, DS fills, INCBIN).
-2. Reading a line with memchr() and memcpy() instead of character by character.
+2. Reading a line with memchr() and memcpy() instead of character by character,
+   and refilling so that a line never spans a refill.
 3. Matching register sets on their bytes rather than through the 24-bit AND
    and OR library calls.
 4. Rejecting a candidate encoding on the cheapest of its three tests.
