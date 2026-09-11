@@ -1,6 +1,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdint.h>
+#include "ctype_tab.h"
 
 static uint8_t pearson[256] = {
       1,  87,  49,  12, 176, 178, 102, 166, 121, 193,   6,  84, 249, 230,  44, 163,
@@ -55,7 +56,7 @@ uint8_t lowercaseHash256(const char *key) {
     
     if (*key == 0) return 0;
     while (*key) {
-        h = pearson[h ^ tolower(*key)];
+        h = pearson[h ^ TOLOWER(*key)];
         key++;
     }
     return h;
