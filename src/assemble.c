@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include "ctype_tab.h"
 #include "config.h"
 #include "defines.h"
 #include "globals.h"
@@ -115,7 +116,7 @@ void parse_operand(char *string, uint8_t len, operand_t *operand) {
         if(string[len-1] == ')') string[len-1] = 0; // terminate on closing bracket
         else error(message[ERROR_CLOSINGBRACKET],0);
         ptr = &string[1];
-        while(isspace(*ptr)) ptr++; // eat spaces
+        while(ISSPACE(*ptr)) ptr++; // eat spaces
     }
     else {
         operand->indirect = false;
@@ -158,7 +159,7 @@ void parse_operand(char *string, uint8_t len, operand_t *operand) {
                     return;
                 case 'c':
                 case 'C':
-                    if((*ptr == 0) || isspace(*ptr)) {
+                    if((*ptr == 0) || ISSPACE(*ptr)) {
                         operand->reg = R_BC;
                         operand->reg_index = R_INDEX_BC;
                         return;
@@ -190,7 +191,7 @@ void parse_operand(char *string, uint8_t len, operand_t *operand) {
                     return;
                 case 'e':
                 case 'E':
-                    if((*ptr == 0) || isspace(*ptr)) {
+                    if((*ptr == 0) || ISSPACE(*ptr)) {
                         operand->reg = R_DE;
                         operand->reg_index = R_INDEX_DE;
                         return;
@@ -217,7 +218,7 @@ void parse_operand(char *string, uint8_t len, operand_t *operand) {
                     return;
                 case 'l':
                 case 'L':
-                    if((*ptr == 0) || isspace(*ptr)) {
+                    if((*ptr == 0) || ISSPACE(*ptr)) {
                         operand->reg = R_HL;
                         operand->reg_index = R_INDEX_HL;
                         return;
@@ -236,7 +237,7 @@ void parse_operand(char *string, uint8_t len, operand_t *operand) {
                     return;
                 case 'x':
                 case 'X':
-                    while(isspace(*ptr)) ptr++; // eat spaces
+                    while(ISSPACE(*ptr)) ptr++; // eat spaces
                     switch(*ptr++) {
                         case 0:
                             operand->reg = R_IX;
@@ -270,7 +271,7 @@ void parse_operand(char *string, uint8_t len, operand_t *operand) {
                     break;
                 case 'y':
                 case 'Y':
-                    while(isspace(*ptr)) ptr++; // eat spaces
+                    while(ISSPACE(*ptr)) ptr++; // eat spaces
                     switch(*ptr++) {
                         case 0:
                             operand->reg = R_IY;
@@ -316,7 +317,7 @@ void parse_operand(char *string, uint8_t len, operand_t *operand) {
             break;
         case 'm':
         case 'M':
-            if((tolower(*ptr) == 'b') && ptr[1] == 0) {
+            if((TOLOWER(*ptr) == 'b') && ptr[1] == 0) {
                 operand->reg = R_MB;
                 operand->reg_index = R_INDEX_MB;
                 return;
@@ -395,7 +396,7 @@ void parse_operand(char *string, uint8_t len, operand_t *operand) {
             break;
         case 's':
         case 'S':
-            if((tolower(*ptr) == 'p') && ptr[1] == 0) {
+            if((TOLOWER(*ptr) == 'p') && ptr[1] == 0) {
                 operand->reg = R_SP;
                 operand->reg_index = R_INDEX_SP;
                 return;
@@ -617,7 +618,7 @@ void handle_asm_data(uint8_t wordtype) {
 
     if(inConditionalSection == CONDITIONSTATE_FALSE) return;
 
-    definelabel(address);
+    DEFINELABEL(address);
 
     while(currentline.next) {
         if(getDefineValueToken(&token, currentline.next)) {
@@ -639,19 +640,19 @@ void handle_asm_data(uint8_t wordtype) {
                             break;
                         default:
                             value = getExpressionValue(token.start, REQUIRED_LASTPASS); // not needed in pass 1
-                            if(pass == ENDPASS) validateRange8bit(value, token.start);
+                            if(pass == ENDPASS) validateRange8bit(&value, token.start);
                             emit_8bit(value);
                             break;
                     }
                     break;
                 case ASM_DW:
                     value = getExpressionValue(token.start, REQUIRED_LASTPASS);
-                    if(pass == ENDPASS) validateRange16bit(value, token.start);
+                    if(pass == ENDPASS) validateRange16bit(&value, token.start);
                     emit_16bit(value);
                     break;
                 case ASM_DW24:
                     value = getExpressionValue(token.start, REQUIRED_LASTPASS);
-                    if(pass == ENDPASS) validateRange24bit(value, token.start);
+                    if(pass == ENDPASS) validateRange24bit(&value, token.start);
                     emit_24bit(value);
                     break;
                 case ASM_DW32:
@@ -706,7 +707,7 @@ void handle_asm_equ(void) {
     value = getExpressionValue(token.start, REQUIRED_FIRSTPASS); // might return the value for $, a potentially relocated address
     bool tmprelocate = relocate;
     relocate = false;
-    definelabel(value); // define the value, not the relocated address
+    DEFINELABEL(value); // define the value, not the relocated address
     relocate = tmprelocate;
 }
 
@@ -771,15 +772,26 @@ void handle_asm_org(void) {
         error(message[ERROR_ADDRESSLOWER], 0);
         return;
     }
-    definelabel(address);
+    DEFINELABEL(address);
 
     // Skip filling if this is the first .org statement
     if(address == start_address) {
         address = newaddress;
         return;
     }
-    // Fill bytes on any subsequent .org statement
-    while(address != newaddress) emit_8bit(fillbyte);
+    // Fill bytes on any subsequent .org statement. A listing has to see each
+    // byte go by, but without one the gap is just a run of fillbyte and the
+    // output buffer can take it in blocks.
+    if(listing) {
+        while(address != newaddress) emit_8bit(fillbyte);
+    }
+    else if(address != newaddress) {
+        if(pass == ENDPASS) {
+            ioFlushDSSpaces();
+            io_outputfill(fillbyte, newaddress - address);
+        }
+        address = newaddress;
+    }
 }
 
 void handle_asm_include(void) {
@@ -809,7 +821,7 @@ void handle_asm_include(void) {
         error(message[ERROR_RECURSIVEINCLUDE],0);
         return;
     }
-    definelabel(address);
+    DEFINELABEL(address);
     if((listing) && (pass == ENDPASS)) listEndLine();
     processContent(token.start+1);
     sourcefilecount++;
@@ -842,7 +854,7 @@ void handle_asm_incbin(void) {
     }
     token.start[strlen(token.start)-1] = 0;
 
-    definelabel(address);
+    DEFINELABEL(address);
 
     // Prepare content
     if((ci = findContent(token.start+1)) == NULL) {
@@ -907,7 +919,7 @@ void handle_asm_blk(uint8_t width) {
 
     if(inConditionalSection == CONDITIONSTATE_FALSE) return;
 
-    definelabel(address);
+    DEFINELABEL(address);
 
     if(!currentline.next) {
         error(message[ERROR_MISSINGARGUMENT],0);
@@ -952,17 +964,17 @@ void handle_asm_blk(uint8_t width) {
                 if(val != fillbyte) warning(message[WARNING_UNSUPPORTED_INITIALIZER],"%s",token.start);
                 break;
             case 1:
-                if(pass == ENDPASS) validateRange8bit(val, token.start);
+                if(pass == ENDPASS) validateRange8bit(&val, token.start);
                 emit_8bit(val);
                 num -= 1;
                 break;
             case 2:
-                if(pass == ENDPASS) validateRange16bit(val, token.start);
+                if(pass == ENDPASS) validateRange16bit(&val, token.start);
                 emit_16bit(val);
                 num -= 1;
                 break;
             case 3:
-                if(pass == ENDPASS) validateRange24bit(val, token.start);
+                if(pass == ENDPASS) validateRange24bit(&val, token.start);
                 emit_24bit(val);
                 num -= 1;
                 break;
@@ -1000,7 +1012,7 @@ uint24_t delta;
     remaining_dsspaces += delta;
     address = base;
 
-    definelabel(address); // set address to current line
+    DEFINELABEL(address); // set address to current line
 }
 
 void handle_asm_definemacro(void) {
@@ -1012,7 +1024,7 @@ void handle_asm_definemacro(void) {
 
     if(inConditionalSection == CONDITIONSTATE_FALSE) return;
 
-    definelabel(address);
+    DEFINELABEL(address);
 
     macrobuffer = readMacroBody(currentcontentitem); // dynamically allocated during STARTPASS
 
@@ -1031,7 +1043,7 @@ void handle_asm_cpu(void) {
 
     if(inConditionalSection == CONDITIONSTATE_FALSE) return;
 
-    definelabel(address);
+    DEFINELABEL(address);
 
     if(!currentline.next || (getOperandToken(&token, currentline.next) == 0)) {
         error(message[ERROR_MISSINGARGUMENT],0);
@@ -1224,9 +1236,8 @@ void processInstructions(void){
     uint8_t listitem;
     bool match;
     bool condmatch;
-    bool regamatch, regbmatch;
 
-    if((currentline.mnemonic == NULL) && (inConditionalSection != CONDITIONSTATE_FALSE)) definelabel(address);
+    if((currentline.mnemonic == NULL) && (inConditionalSection != CONDITIONSTATE_FALSE)) DEFINELABEL(address);
 
     if(currentline.current_instruction) {
         if(currentline.current_instruction->type == EZ80) {
@@ -1234,25 +1245,31 @@ void processInstructions(void){
                 // process this mnemonic by applying the instruction list as a filter to the operand-set
                 list = currentline.current_instruction->list;
                 match = false;
-                for(listitem = 0; listitem < currentline.current_instruction->listnumber; listitem++) {
-                    regamatch = (list->regsetA & operand1.reg) || !(list->regsetA | operand1.reg);
-                    regbmatch = (list->regsetB & operand2.reg) || !(list->regsetB | operand2.reg);
-
+                for(listitem = 0; listitem < currentline.current_instruction->listnumber; listitem++, list++) {
+                    // Cheapest test first, and reject on it. A mnemonic like LD
+                    // has around a hundred candidate encodings and the addressing
+                    // modes rule out nearly all of them in a couple of byte
+                    // comparisons, which is a good deal less work than comparing
+                    // two register sets.
                     condmatch = ((list->conditionsA & MODECHECK) == operand1.addressmode) && ((list->conditionsB & MODECHECK) == operand2.addressmode);
                     if(list->flags & F_CCOK) {
-                        condmatch |= operand1.cc;
-                        regamatch = true;
+                        // Takes a condition code, and then it matches whatever
+                        // register operand A names.
+                        if(!(condmatch || operand1.cc)) continue;
                     }
-                    if(regamatch && regbmatch && condmatch) {
-                        match = true;
-                        if(!(cputype & list->cpu)) {
-                            errorCPUtype(ERROR_INVALID_CPU_INSTRUCTION);
-                            break;
-                        }
-                        emit_instruction(list);
+                    else {
+                        if(!condmatch) continue;
+                        if(!REGSETMATCH(&list->regsetA, &operand1.reg)) continue;
+                    }
+                    if(!REGSETMATCH(&list->regsetB, &operand2.reg)) continue;
+
+                    match = true;
+                    if(!(cputype & list->cpu)) {
+                        errorCPUtype(ERROR_INVALID_CPU_INSTRUCTION);
                         break;
                     }
-                    list++;
+                    emit_instruction(list);
+                    break;
                 }
                 if(!match) error(message[ERROR_OPERANDSNOTMATCHING],0);
                 return;
@@ -1282,7 +1299,7 @@ void processMacro(void) {
     localexpandedmacro->currentExpandID = localmacroExpandID;
 
     // Check for defined label
-    definelabel(address);
+    DEFINELABEL(address);
 
     // potentially transform arguments first, when calling from within a macro
     if(currentExpandedMacro) {
