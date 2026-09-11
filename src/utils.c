@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include "ctype_tab.h"
 #include "defines.h"
 #include "globals.h"
 #include "console.h"
@@ -132,7 +133,7 @@ void warning(const char *msg, const char *contextformat, ...) {
 void trimRight(char *str) {
     while(*str) str++;
     str--;
-    while(isspace(*str)) str--;
+    while(ISSPACE(*str)) str--;
     str++;
     *str = 0;
 }
@@ -143,13 +144,13 @@ uint8_t getMnemonicToken(streamtoken_t *token, char *src) {
     uint8_t length = 0;
 
     // skip leading space
-    while(*src && (isspace(*src))) src++;
+    while(ISSPACE(*src)) src++;
     if(*src == 0) {
         memset(token, 0, sizeof(streamtoken_t));
         return 0;
     }
     token->start = src;
-    while(!isspace(*src) && (*src != ';') && (*src != ':') && *src) {
+    while(!ISMNEMONICEND(*src)) {
         length++;
         src++;
     }
@@ -168,7 +169,7 @@ uint8_t getOperandToken(streamtoken_t *token, char *src) {
     bool inliteral = false;
 
     // skip leading space
-    while(*src && (isspace(*src))) src++;
+    while(ISSPACE(*src)) src++;
     if(*src == 0) {
         memset(token, 0, sizeof(streamtoken_t));
         return 0;
@@ -176,18 +177,24 @@ uint8_t getOperandToken(streamtoken_t *token, char *src) {
     token->start = src;
 
     // hunt for end-character (0 , or ; in normal non-literal mode)
+    //
+    // Only three characters can matter, so ordinary ones get past on three
+    // comparisons with no state to load; the literal flag is only consulted
+    // once one of the three turns up.
     while(*src) {
-        if(*src == '\'') {
-            if(inliteral) {
-                if(*(src+1) == '\'') {
-                    src++;
-                    length++;
+        if((*src == ',') || (*src == ';') || (*src == '\'')) {
+            if(*src == '\'') {
+                if(inliteral) {
+                    if(*(src+1) == '\'') {
+                        src++;
+                        length++;
+                    }
+                    inliteral = false;
                 }
-                inliteral = false;
-            } 
-            else inliteral = true;
+                else inliteral = true;
+            }
+            else if(!inliteral) break;
         }
-        if(!inliteral && ((*src == ',') || (*src == ';'))) break;
         src++;
         length++;
     }
@@ -198,7 +205,7 @@ uint8_t getOperandToken(streamtoken_t *token, char *src) {
 
     if(length) {
         *src-- = 0; // terminate early and revert one character
-        while(isspace(*src)) { // remove trailing space(s)
+        while(ISSPACE(*src)) { // remove trailing space(s)
             *src-- = 0; // terminate on trailing spaces
             if(length-- == 0) break;
         }
@@ -238,7 +245,7 @@ uint8_t getDefineValueToken(streamtoken_t *token, char *src) {
     bool terminated;
 
     // skip leading space
-    while(*src && (isspace(*src))) src++;
+    while(ISSPACE(*src)) src++;
     if(*src == 0) {
         memset(token, 0, sizeof(streamtoken_t));
         return 0;
@@ -309,7 +316,7 @@ uint8_t getDefineValueToken(streamtoken_t *token, char *src) {
 
     if(length) {
         *src-- = 0; // terminate early and revert one character
-        while(isspace(*src)) { // remove trailing space(s)
+        while(ISSPACE(*src)) { // remove trailing space(s)
             *src-- = 0; // terminate on trailing spaces
             if(length-- == 0) break;
         }
@@ -318,25 +325,29 @@ uint8_t getDefineValueToken(streamtoken_t *token, char *src) {
     return length;
 }
 
-void validateRange8bit(int32_t value, const char *name) {
+// These take the value by address, not by value. The range macros read the
+// bytes of the word, and given a value it is holding in registers the compiler
+// will happily produce those bytes with 32-bit shifts -- library calls, the
+// very thing the macro exists to avoid. Given an address it has to load them.
+void validateRange8bit(const int32_t *value, const char *name) {
     if(!(ignore_truncation_warnings)) {
-        if((value > 0xff) || (value < -128)) {
+        if(OUTOFRANGE8(value)) {
             warning(message[WARNING_TRUNCATED_8BIT],"%s",name);
         }
     }
 }
 
-void validateRange16bit(int32_t value, const char *name) {
+void validateRange16bit(const int32_t *value, const char *name) {
     if(!(ignore_truncation_warnings)) {
-        if((value > 0xffff) || (value < -32768)) {
+        if(OUTOFRANGE16(value)) {
             warning(message[WARNING_TRUNCATED_16BIT],"%s",name);
         }
     }
 }
 
-void validateRange24bit(int32_t value, const char *name) {
+void validateRange24bit(const int32_t *value, const char *name) {
     if(!(ignore_truncation_warnings)) {
-        if((value > 0xffffff) || (value < -8388608)) {
+        if(OUTOFRANGE24(value)) {
             warning(message[WARNING_TRUNCATED_24BIT],"%s",name);
         }
     }
@@ -477,7 +488,7 @@ int32_t getExpressionValue(char *str, requiredResult_t requiredPass) {
 
     if((pass == STARTPASS) && (requiredPass == REQUIRED_LASTPASS)) return 0;
 
-    while(isspace(*str)) str++; // eat all spaces
+    while(ISSPACE(*str)) str++; // eat all spaces
     errptr = str;
 
     operator = 0; // first implicit operator
@@ -497,12 +508,12 @@ int32_t getExpressionValue(char *str, requiredResult_t requiredPass) {
         switch(state) {
             case UNARY:
                 unaryoperator = *str++;
-                while(isspace(*str)) str++; // eat all spaces
+                while(ISSPACE(*str)) str++; // eat all spaces
                 if(*str == 0) {
                     error(message[ERROR_MISSINGLABELORNUMBER],"%s",errptr);
                     return 0;
                 }
-                if(strchr("+-*/<>&|^~", *str)) {
+                if(ISOPERATOR(*str)) {
                     error(message[ERROR_UNARYOPERATOR],0);
                     return 0;
                 }
@@ -518,23 +529,23 @@ int32_t getExpressionValue(char *str, requiredResult_t requiredPass) {
                 }
                 unaryoperator = 0;
                 operator = *str++;
-                if(strchr("+-*/<>&|^", operator) == 0) { // illegal operator
+                if(!ISBINARYOPERATOR(operator)) { // illegal operator
                     error(message[ERROR_OPERATOR], "%c", operator);
                     return 0;
                 }
-                while(isspace(*str)) str++; // eat all spaces
+                while(ISSPACE(*str)) str++; // eat all spaces
                 if(*str == 0) {
                     error(message[ERROR_MISSINGLABELORNUMBER],"%s",errptr);
                     return 0;
                 }
-                if(strchr("*/<>&|^", *str)) { // illegal unary
+                if(ISNEVERUNARY(*str)) { // illegal unary
                     error(message[ERROR_UNARYOPERATOR], 0);
                     return 0;
                 }
                 state = START;
                 // implicit fall-through for performance
             case START:
-                if(strchr("+-*/<>&|^~", *str)) {
+                if(ISOPERATOR(*str)) {
                     if((*str == '-') || (*str == '~') || (*str == '+')) {
                         state = UNARY;
                         break;
@@ -563,7 +574,7 @@ int32_t getExpressionValue(char *str, requiredResult_t requiredPass) {
                         str = token.next;
                         break;
                     default:
-                        while(!strchr("+-*/<>&|^~\t ", *str)) *bufptr++ = *str++;
+                        while(!ISEXPRESSIONEND(*str)) *bufptr++ = *str++;
                         *bufptr = 0; // terminate string in buffer
                         tmp = resolveNumber(buffer, bufptr - buffer, requiredPass);
                         break;
@@ -594,7 +605,7 @@ int32_t getExpressionValue(char *str, requiredResult_t requiredPass) {
                 operator = 0;
                 unaryoperator = 0;
 
-                while(isspace(*str)) str++; // eat all spaces
+                while(ISSPACE(*str)) str++; // eat all spaces
                 if(*str) state = OP;
                 else return total;
                 break;
@@ -637,18 +648,47 @@ uint16_t getnextMacroLine(char **ptr, char *dst) {
     return len;
 }
 
+// How many characters of a line may still be copied in one block.
+//
+// A line is at most LINEMAX characters, and the character at LINEMAX is only
+// allowed when it is the newline that ends the line -- so a run that ends on a
+// newline may be one longer than one that does not. Anything longer has to be
+// copied a character at a time, because that is the path that reports where it
+// stopped, and this is the rare case anyway.
+#define LINERUNFITS(len, run, endsonnewline) \
+    (((len) + (run)) <= (uint24_t)LINEMAX + ((endsonnewline) ? 1 : 0))
+
 uint16_t _readFullBufferedLine(char *dst1, contentitem_t *ci) {
     uint16_t len = 0;
     char *ptr = ci->readptr;
+    uint24_t remaining = ci->size - ci->filepos;
+    char *end;
+    uint24_t run;
 
-    while(*ptr) {
-        if((len++ == LINEMAX) && (*ptr != '\n')) {
-            error(message[ERROR_LINETOOLONG],0);
-            return 0;
-        }
-        *dst1++ = *ptr;
-        if(*ptr++ == '\n') {
-            break;
+    // The line runs to the next newline, or to the end of the file. An
+    // embedded zero ends it early, the way reading character by character did,
+    // but only the characters up to the newline need looking at for one.
+    end = memchr(ptr, '\n', remaining);
+    run = end ? (uint24_t)(end - ptr) + 1 : remaining;
+    end = memchr(ptr, 0, run);
+    if(end) run = (uint24_t)(end - ptr);
+
+    if(LINERUNFITS(len, run, run && (ptr[run-1] == '\n'))) {
+        memcpy(dst1, ptr, run);
+        dst1 += run;
+        ptr += run;
+        len = run;
+    }
+    else {
+        while(*ptr) {
+            if((len++ == LINEMAX) && (*ptr != '\n')) {
+                error(message[ERROR_LINETOOLONG],0);
+                return 0;
+            }
+            *dst1++ = *ptr;
+            if(*ptr++ == '\n') {
+                break;
+            }
         }
     }
     ci->readptr = ptr;
@@ -659,37 +699,101 @@ uint16_t _readFullBufferedLine(char *dst1, contentitem_t *ci) {
 }
 
 // Used with '-m' minimum buffered configuration
-// Reads content into the ci->buffer, gets a LINE from it and returns it's length
-uint16_t _readMinimumBufferedLine(char *dst, contentitem_t *ci) {
-    uint16_t len = 0;
-    char *ptr = ci->readptr;
-    bool done = false;        
+//
+// Refills the buffer so that it ends on a line boundary: whatever the last
+// read left after its final newline is carried to the front, the file is read
+// into the rest, and the usable end is pulled back to the last newline in what
+// is now there. Every line in the buffer is then whole, which is what lets the
+// reader below take one with a single memchr() and a single memcpy() and no
+// loop -- a line cannot span a refill, so there is no partial line to carry
+// around in the reader itself.
+//
+// Returns false at end of file, when nothing is left to read.
+bool _fillLineBuffer(contentitem_t *ci) {
+    unsigned int carry = ci->rawinbuffer - (unsigned int)(ci->readptr - ci->buffer);
+    unsigned int got;
+    unsigned int n;
 
-    while(!done) {
-        if(ci->bytesinbuffer == 0) { // fill buffer
-            ci->bytesinbuffer = fread(ci->buffer, 1, INPUT_BUFFERSIZE, ci->fh);
-            ci->readptr = ci->buffer;
-            ptr = ci->buffer;
-            if(ci->bytesinbuffer == 0) done = true;
-        }
-        else {
-            ptr = ci->readptr;
-            while(ci->bytesinbuffer) {
-                if((len++ == LINEMAX) && (*ptr != '\n')) {
-                    error(message[ERROR_LINETOOLONG],0);
-                    return 0;
-                }
-                ci->bytesinbuffer--;
-                *dst++ = *ptr;
-                if(*ptr++ == '\n') {
-                    done = true;
-                    break;
-                }
-            }
+    if(carry) memmove(ci->buffer, ci->readptr, carry);
+    got = fread(ci->buffer + carry, 1, INPUT_BUFFERSIZE - carry, ci->fh);
+    ci->readptr = ci->buffer;
+    ci->rawinbuffer = carry + got;
+
+    if(ci->rawinbuffer == 0) {
+        ci->bytesinbuffer = 0;
+        return false;
+    }
+
+    // A read shorter than asked for is the end of the file. What is left is
+    // the last line, which needs no newline to be a line, so there is nothing
+    // to pull back to.
+    if(got < INPUT_BUFFERSIZE - carry) {
+        ci->bytesinbuffer = ci->rawinbuffer;
+        return true;
+    }
+
+    for(n = ci->rawinbuffer; n > 0; n--) {
+        if(ci->buffer[n - 1] == '\n') {
+            ci->bytesinbuffer = n;
+            return true;
         }
     }
+
+    // A full buffer with no newline in it: one line is longer than the buffer,
+    // which is longer than LINEMAX, so the reader is about to complain about
+    // it. Hand the whole thing over and let it.
+    ci->bytesinbuffer = ci->rawinbuffer;
+    return true;
+}
+
+// Reads a LINE from the buffer and returns its length
+uint16_t _readMinimumBufferedLine(char *dst, contentitem_t *ci) {
+    uint16_t len = 0;
+    char *ptr;
+    char *end;
+    uint24_t run;
+
+    if((ci->bytesinbuffer == 0) && !_fillLineBuffer(ci)) {
+        *dst = 0;
+        ci->lastreadlength = 0;
+        return 0;
+    }
+
+    ptr = ci->readptr;
+    end = memchr(ptr, '\n', ci->bytesinbuffer);
+    run = end ? (uint24_t)(end - ptr) + 1 : ci->bytesinbuffer;
+
+    if(LINERUNFITS(0, run, end != NULL)) {
+        memcpy(dst, ptr, run);
+        dst += run;
+        ptr += run;
+        len = run;
+        ci->readptr = ptr;
+        ci->bytesinbuffer -= run;
+    }
+    else {
+        // Too long. This is the path that has to report where it stopped, so
+        // it still goes a character at a time and leaves the buffer where it
+        // left off.
+        unsigned int left = ci->bytesinbuffer;
+
+        while(left) {
+            char c;
+            if((len++ == LINEMAX) && (*ptr != '\n')) {
+                ci->bytesinbuffer = left;
+                error(message[ERROR_LINETOOLONG],0);
+                return 0;
+            }
+            left--;
+            c = *ptr++;
+            *dst++ = c;
+            if(c == '\n') break;
+        }
+        ci->readptr = ptr;
+        ci->bytesinbuffer = left;
+    }
+
     *dst = 0;
-    ci->readptr = ptr;
     ci->filepos += len;
     ci->lastreadlength = len;
     return len;

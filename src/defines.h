@@ -163,6 +163,8 @@ typedef struct contentitem {
     char            labelscope[MAXNAMELENGTH+1];
     uint8_t         inConditionalSection;
     unsigned int    bytesinbuffer;                // only used during minimal input buffering
+    unsigned int    rawinbuffer;                  // bytes actually read into it, which is bytesinbuffer plus the
+                                                  // partial line past the last newline, carried to the front on refill
 } contentitem_t;
 
 typedef struct {
@@ -194,6 +196,44 @@ typedef struct {
     uint8_t         prefix2;
     uint8_t         opcode;
 } opcodesequence_t;
+
+// True when two register sets share a register, or when neither of them names
+// one at all -- the test the instruction matcher applies to each operand.
+//
+// A macro over the bytes of the two words, not `(a & b) || !(a | b)`, because
+// the eZ80 has no 24-bit AND or OR: written the obvious way this becomes four
+// library calls, and the matcher runs it once per candidate encoding of a
+// mnemonic -- about a hundred of them for LD alone, on every LD, on both
+// passes. Only the low three bytes are looked at; the register bits occupy 21
+// of them, and on the PC build, where uint24_t is a 32-bit type, the fourth is
+// always zero.
+#define REGSETBYTE(p, n)    (((const uint8_t *)(p))[n])
+#define REGSETOVERLAP(a, b)                                     \
+    (((REGSETBYTE(a,0) & REGSETBYTE(b,0)) |                     \
+      (REGSETBYTE(a,1) & REGSETBYTE(b,1)) |                     \
+      (REGSETBYTE(a,2) & REGSETBYTE(b,2))) != 0)
+#define REGSETEMPTY(a, b)                                       \
+    (((REGSETBYTE(a,0) | REGSETBYTE(b,0)) |                     \
+      (REGSETBYTE(a,1) | REGSETBYTE(b,1)) |                     \
+      (REGSETBYTE(a,2) | REGSETBYTE(b,2))) == 0)
+#define REGSETMATCH(a, b)   (REGSETOVERLAP(a, b) || REGSETEMPTY(a, b))
+
+// True when a 32-bit value does not fit in one, two or three bytes, signed or
+// unsigned -- what the truncation warnings ask about every initializer in a
+// DB/DW/DL list and about every 8-bit immediate. The bytes above the ones kept
+// have to be all zero, or all ones with the sign bit of the last kept byte
+// set. Written out like this for the same reason as REGSETMATCH(): a 32-bit
+// comparison on the eZ80 is a library call.
+#define VALUEBYTE(p, n)     (((const uint8_t *)(p))[n])
+#define OUTOFRANGE8(p)                                          \
+    (!(((VALUEBYTE(p,1) | VALUEBYTE(p,2) | VALUEBYTE(p,3)) == 0) || \
+       (((VALUEBYTE(p,1) & VALUEBYTE(p,2) & VALUEBYTE(p,3)) == 0xff) && (VALUEBYTE(p,0) >= 0x80))))
+#define OUTOFRANGE16(p)                                         \
+    (!(((VALUEBYTE(p,2) | VALUEBYTE(p,3)) == 0) ||              \
+       (((VALUEBYTE(p,2) & VALUEBYTE(p,3)) == 0xff) && (VALUEBYTE(p,1) >= 0x80))))
+#define OUTOFRANGE24(p)                                         \
+    (!((VALUEBYTE(p,3) == 0) ||                                 \
+       ((VALUEBYTE(p,3) == 0xff) && (VALUEBYTE(p,2) >= 0x80))))
 
 typedef struct {
     uint24_t        regsetA;            // one or more registers that need to match this operand
