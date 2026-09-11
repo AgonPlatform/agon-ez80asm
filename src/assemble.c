@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include "ctype_tab.h"
 #include "config.h"
 #include "defines.h"
 #include "globals.h"
@@ -115,7 +116,7 @@ void parse_operand(char *string, uint8_t len, operand_t *operand) {
         if(string[len-1] == ')') string[len-1] = 0; // terminate on closing bracket
         else error(message[ERROR_CLOSINGBRACKET],0);
         ptr = &string[1];
-        while(isspace(*ptr)) ptr++; // eat spaces
+        while(ISSPACE(*ptr)) ptr++; // eat spaces
     }
     else {
         operand->indirect = false;
@@ -158,7 +159,7 @@ void parse_operand(char *string, uint8_t len, operand_t *operand) {
                     return;
                 case 'c':
                 case 'C':
-                    if((*ptr == 0) || isspace(*ptr)) {
+                    if((*ptr == 0) || ISSPACE(*ptr)) {
                         operand->reg = R_BC;
                         operand->reg_index = R_INDEX_BC;
                         return;
@@ -190,7 +191,7 @@ void parse_operand(char *string, uint8_t len, operand_t *operand) {
                     return;
                 case 'e':
                 case 'E':
-                    if((*ptr == 0) || isspace(*ptr)) {
+                    if((*ptr == 0) || ISSPACE(*ptr)) {
                         operand->reg = R_DE;
                         operand->reg_index = R_INDEX_DE;
                         return;
@@ -217,7 +218,7 @@ void parse_operand(char *string, uint8_t len, operand_t *operand) {
                     return;
                 case 'l':
                 case 'L':
-                    if((*ptr == 0) || isspace(*ptr)) {
+                    if((*ptr == 0) || ISSPACE(*ptr)) {
                         operand->reg = R_HL;
                         operand->reg_index = R_INDEX_HL;
                         return;
@@ -236,7 +237,7 @@ void parse_operand(char *string, uint8_t len, operand_t *operand) {
                     return;
                 case 'x':
                 case 'X':
-                    while(isspace(*ptr)) ptr++; // eat spaces
+                    while(ISSPACE(*ptr)) ptr++; // eat spaces
                     switch(*ptr++) {
                         case 0:
                             operand->reg = R_IX;
@@ -270,7 +271,7 @@ void parse_operand(char *string, uint8_t len, operand_t *operand) {
                     break;
                 case 'y':
                 case 'Y':
-                    while(isspace(*ptr)) ptr++; // eat spaces
+                    while(ISSPACE(*ptr)) ptr++; // eat spaces
                     switch(*ptr++) {
                         case 0:
                             operand->reg = R_IY;
@@ -316,7 +317,7 @@ void parse_operand(char *string, uint8_t len, operand_t *operand) {
             break;
         case 'm':
         case 'M':
-            if((tolower(*ptr) == 'b') && ptr[1] == 0) {
+            if((TOLOWER(*ptr) == 'b') && ptr[1] == 0) {
                 operand->reg = R_MB;
                 operand->reg_index = R_INDEX_MB;
                 return;
@@ -395,7 +396,7 @@ void parse_operand(char *string, uint8_t len, operand_t *operand) {
             break;
         case 's':
         case 'S':
-            if((tolower(*ptr) == 'p') && ptr[1] == 0) {
+            if((TOLOWER(*ptr) == 'p') && ptr[1] == 0) {
                 operand->reg = R_SP;
                 operand->reg_index = R_INDEX_SP;
                 return;
@@ -778,8 +779,19 @@ void handle_asm_org(void) {
         address = newaddress;
         return;
     }
-    // Fill bytes on any subsequent .org statement
-    while(address != newaddress) emit_8bit(fillbyte);
+    // Fill bytes on any subsequent .org statement. A listing has to see each
+    // byte go by, but without one the gap is just a run of fillbyte and the
+    // output buffer can take it in blocks.
+    if(listing) {
+        while(address != newaddress) emit_8bit(fillbyte);
+    }
+    else if(address != newaddress) {
+        if(pass == ENDPASS) {
+            ioFlushDSSpaces();
+            io_outputfill(fillbyte, newaddress - address);
+        }
+        address = newaddress;
+    }
 }
 
 void handle_asm_include(void) {
