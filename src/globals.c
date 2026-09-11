@@ -17,7 +17,6 @@ contentitem_t *currentcontentitem;
 uint16_t sourcefilecount;
 uint16_t binfilecount;
 uint24_t filecontentsize;
-bool completefilebuffering;
 unsigned int macrolinenumber;
 unsigned int pass;
 conditionalstate_t inConditionalSection;

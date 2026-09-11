@@ -23,7 +23,7 @@ These versions require at least MOS 1.03.
     -d Direct listing to console
     -c No color codes in output (version 1.3+)
     -x Display assembly statistics (version 1.1+)
-    -m Minimum memory configuration (version 2.0+)
+    -m Accepted and ignored (version 2.3+); source files are always read a buffer at a time
 
 The given filename will be assembled into these files:
 - filename.bin -- output executable file
