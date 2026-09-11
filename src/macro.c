@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <ctype.h>
+#include "ctype_tab.h"
 #include "config.h"
 #include "defines.h"
 #include "utils.h"
@@ -195,14 +196,14 @@ char * readMacroBody(contentitem_t *ci) {
         }
 
         // skip leading space
-        while(*tmp && (isspace(*tmp))) tmp++;
+        while(*tmp && (ISSPACE(*tmp))) tmp++;
         if(strncasecmp(tmp, "macro", 5) == 0) {
             error(message[ERROR_MACROINMACRO],0);
             return NULL;
         }
         uint8_t skipdot = (*tmp == '.')?1:0;
         if(strncasecmp(tmp+skipdot, "endmacro", 8) == 0) { 
-            if(isspace(tmp[8+skipdot]) || (tmp[8+skipdot] == 0) || (tmp[8+skipdot] == ';')) {
+            if(ISSPACE(tmp[8+skipdot]) || (tmp[8+skipdot] == 0) || (tmp[8+skipdot] == ';')) {
                 foundend = true;
                 break;
             }
