@@ -4,6 +4,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include "ctype_tab.h"
 #include "config.h"
 #include "defines.h"
 #include "hash.h"
@@ -30,9 +31,13 @@ uint8_t get_immediate_size(uint8_t suffix) {
     else return 2;
 }
 
-uint8_t get_ddfd_prefix(uint24_t reg) {
-    if(reg & (R_IX|R_IXH|R_IXL)) return 0xDD;
-    if(reg & (R_IY|R_IYH|R_IYL)) return 0xFD;
+static const uint24_t ixregisters = R_IX|R_IXH|R_IXL;
+static const uint24_t iyregisters = R_IY|R_IYH|R_IYL;
+static const uint24_t lowindexregisters = R_IXL|R_IYL;
+
+uint8_t get_ddfd_prefix(const uint24_t *reg) {
+    if(REGSETOVERLAP(reg, &ixregisters)) return 0xDD;
+    if(REGSETOVERLAP(reg, &iyregisters)) return 0xFD;
     return 0;
 }
 
@@ -41,8 +46,8 @@ void prefix_ddfd_suffix(const operandlist_t *op) {
 
     if(!(op->flags & F_DDFDOK)) return;
 
-    prefix1 = get_ddfd_prefix(operand1.reg);
-    prefix2 = get_ddfd_prefix(operand2.reg);
+    prefix1 = get_ddfd_prefix(&operand1.reg);
+    prefix2 = get_ddfd_prefix(&operand2.reg);
 
     if((!prefix1 && prefix2) || (!operand1.indirect && prefix1 && prefix2)) {
         output.prefix1 = prefix2;
@@ -60,10 +65,10 @@ void transform_instruction(operand_t *op, uint8_t type) {
         case TRANSFORM_NONE:
             break;
         case TRANSFORM_IR0:
-            if(op->reg & (R_IXL|R_IYL)) output.opcode |= 0x01;
+            if(REGSETOVERLAP(&op->reg, &lowindexregisters)) output.opcode |= 0x01;
             break;
         case TRANSFORM_IR3:
-            if(op->reg & (R_IXL|R_IYL)) output.opcode |= 0x08;
+            if(REGSETOVERLAP(&op->reg, &lowindexregisters)) output.opcode |= 0x08;
             break;
         case TRANSFORM_Z:
             output.opcode |= op->reg_index;
@@ -132,7 +137,7 @@ uint8_t getADLsuffix(void) {
 
     switch(strlen(currentline.suffix)) {
         case 1: // .s or .l
-            switch(tolower(currentline.suffix[0])) {
+            switch(TOLOWER(currentline.suffix[0])) {
                 case 's':
                     if(adlmode) return S_SIL;  // SIL
                     else return S_SIS;         // SIS
@@ -146,8 +151,8 @@ uint8_t getADLsuffix(void) {
            }
             break;
         case 2: // .is or .il
-            if(tolower(currentline.suffix[0]) != 'i') break; // illegal suffix
-            switch(tolower(currentline.suffix[1])) {
+            if(TOLOWER(currentline.suffix[0]) != 'i') break; // illegal suffix
+            switch(TOLOWER(currentline.suffix[1])) {
                 case 's':
                     if(adlmode) return S_LIS;  // LIS
                     else return S_SIS;         // SIS
@@ -161,16 +166,16 @@ uint8_t getADLsuffix(void) {
            }
             break;
         case 3:
-            if(tolower(currentline.suffix[1]) != 'i') break; // illegal suffix
-            switch(tolower(currentline.suffix[0])) {
+            if(TOLOWER(currentline.suffix[1]) != 'i') break; // illegal suffix
+            switch(TOLOWER(currentline.suffix[0])) {
                 case 's':
-                    if(tolower(currentline.suffix[2]) == 's') return S_SIS; // SIS
-                    if(tolower(currentline.suffix[2]) == 'l') return S_SIL; // SIL
+                    if(TOLOWER(currentline.suffix[2]) == 's') return S_SIS; // SIS
+                    if(TOLOWER(currentline.suffix[2]) == 'l') return S_SIL; // SIL
                     // illegal suffix
                     break;
                 case 'l':
-                    if(tolower(currentline.suffix[2]) == 's') return S_LIS; // LIS
-                    if(tolower(currentline.suffix[2]) == 'l') return S_LIL; // LIL
+                    if(TOLOWER(currentline.suffix[2]) == 's') return S_LIS; // LIS
+                    if(TOLOWER(currentline.suffix[2]) == 'l') return S_LIL; // LIL
                     // illegal suffix
                     break;
                 default: // illegal suffix
@@ -203,8 +208,8 @@ void emit_instruction(const operandlist_t *list) {
     // issue any warnings here
     if((list->transformA != TRANSFORM_REL) && (list->transformB != TRANSFORM_REL)) { // TRANSFORM_REL will mask to 0xFF
         if(!ignore_truncation_warnings) {
-            if((list->conditionsA & IMM_N) && ((operand1.immediate > 0xFF) || (operand1.immediate < -128))) warning(message[WARNING_TRUNCATED_8BIT],"%s",operand1.immediate_name);
-            if((list->conditionsB & IMM_N) && ((operand2.immediate > 0xFF) || (operand2.immediate < -128))) warning(message[WARNING_TRUNCATED_8BIT],"%s",operand2.immediate_name);
+            if((list->conditionsA & IMM_N) && OUTOFRANGE8(&operand1.immediate)) warning(message[WARNING_TRUNCATED_8BIT],"%s",operand1.immediate_name);
+            if((list->conditionsB & IMM_N) && OUTOFRANGE8(&operand2.immediate)) warning(message[WARNING_TRUNCATED_8BIT],"%s",operand2.immediate_name);
         }
     }
     if((output.suffix) && ((list->flags & output.suffix) == 0)) error(message[ERROR_ILLEGAL_SUFFIXMODE],"%s",currentline.suffix);

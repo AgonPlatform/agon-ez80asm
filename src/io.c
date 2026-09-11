@@ -169,14 +169,58 @@ void io_outputc(unsigned char c) {
     if(_filebuffersize[FILE_OUTPUT] == OUTPUT_BUFFERSIZE) _io_flush(FILE_OUTPUT);
 }
 
+// The same byte `count` times, in whole blocks. Used for the gaps that ORG and
+// DS leave behind, which run to thousands of bytes.
+void io_outputfill(unsigned char c, uint24_t count) {
+    char *dst = _filebuffer[FILE_OUTPUT];
+    uint24_t used = _filebuffersize[FILE_OUTPUT];
+
+    while(count) {
+        uint24_t run = OUTPUT_BUFFERSIZE - used;
+        if(count < run) run = count;
+        memset(dst, c, run);
+        dst += run;
+        used += run;
+        count -= run;
+        if(used == OUTPUT_BUFFERSIZE) {
+            _filebuffer[FILE_OUTPUT] = dst;
+            _filebuffersize[FILE_OUTPUT] = used;
+            _io_flush(FILE_OUTPUT);
+            dst = _filebuffer[FILE_OUTPUT];
+            used = _filebuffersize[FILE_OUTPUT];
+        }
+    }
+    _filebuffer[FILE_OUTPUT] = dst;
+    _filebuffersize[FILE_OUTPUT] = used;
+}
+
+// Append `size` bytes to a buffered output file, a bufferful at a time.
+// Copying with memcpy() rather than a character loop matters most for INCBIN,
+// which hands over a whole file in one call.
 void  ioWrite(uint8_t fh, const char *s, uint24_t size) {
     if(_bufferstart[fh]) {
         // Buffered IO
-        while(size--) {
-            *(_filebuffer[fh]++) = *s++;
-            _filebuffersize[fh]++;
-            if(_filebuffersize[fh] == OUTPUT_BUFFERSIZE) _io_flush(fh);
+        char *dst = _filebuffer[fh];
+        uint24_t used = _filebuffersize[fh];
+
+        while(size) {
+            uint24_t run = OUTPUT_BUFFERSIZE - used;
+            if(size < run) run = size;
+            memcpy(dst, s, run);
+            dst += run;
+            s += run;
+            used += run;
+            size -= run;
+            if(used == OUTPUT_BUFFERSIZE) {
+                _filebuffer[fh] = dst;
+                _filebuffersize[fh] = used;
+                _io_flush(fh);
+                dst = _filebuffer[fh];
+                used = _filebuffersize[fh];
+            }
         }
+        _filebuffer[fh] = dst;
+        _filebuffersize[fh] = used;
     }
     else fwrite(s, 1, size, filehandle[fh]);
 }
@@ -208,9 +252,9 @@ void ioFlushDSSpaces(void) {
     if(pass != ENDPASS) return;
 
     if(listing && remaining_dsspaces) listPrintDSLines(remaining_dsspaces, fillbyte);
-    while(remaining_dsspaces) {
-        io_outputc(fillbyte);
-        remaining_dsspaces--;
+    if(remaining_dsspaces) {
+        io_outputfill(fillbyte, remaining_dsspaces);
+        remaining_dsspaces = 0;
     }
 }
 
@@ -303,7 +347,7 @@ void emit_immediate(const operand_t *op, uint8_t suffix) {
     num = get_immediate_size(suffix);
     emit_8bit(op->immediate & 0xFF);
     emit_8bit((op->immediate >> 8) & 0xFF);
-    if(num == 2) validateRange16bit(op->immediate, op->immediate_name);
+    if(num == 2) validateRange16bit(&op->immediate, op->immediate_name);
     if(num == 3) emit_8bit((op->immediate >> 16) & 0xFF);
 }
 
