@@ -20,6 +20,25 @@
 // instruction hash table
 instruction_t *instruction_table[INSTRUCTION_HASHTABLESIZE];
 
+// Keep the 0..765 byte offset out of the wide-multiply runtime helper.
+#if defined(__GNUC__)
+__attribute__((always_inline))
+#endif
+static inline instruction_t **hashBucket(uint8_t index) {
+#ifdef AGONDEV
+    _Static_assert(sizeof(instruction_table[0]) == 3, "eZ80 pointer stride must be three bytes");
+    // Keep the two bytes in memory: recombining them in registers makes
+    // LLVM emit a wide left-shift helper. The high byte increments at 86/171.
+    volatile uint16_t offset;
+    volatile unsigned char *bytes = (volatile unsigned char *)&offset;
+    bytes[0] = (uint8_t)(index * 3);
+    bytes[1] = (uint8_t)((index > 85) + (index > 170));
+    return (instruction_t **)((unsigned char *)instruction_table + offset);
+#else
+    return &instruction_table[index];
+#endif
+}
+
 // get the number of bytes to emit from an immediate
 uint8_t get_immediate_size(uint8_t suffix) {
     if(suffix) {
@@ -1095,7 +1114,7 @@ instruction_t * instruction_lookup(const char *name) {
     instruction_t *try;
 
     index = lowercaseHash256(name);
-    try = instruction_table[index];
+    try = (*hashBucket(index));
 
     while(true)
     {
@@ -1114,11 +1133,11 @@ void initInstructionTable(void) {
 
     for(n = 0; n < (sizeof(instructions) / sizeof(instruction_t)); n++) {
       index = lowercaseHash256(instructions[n].name);
-      try = instruction_table[index];
+      try = (*hashBucket(index));
 
       // First item on index
       if(try == NULL) {
-         instruction_table[index] = &instructions[n];
+         (*hashBucket(index)) = &instructions[n];
       }
       else {
          while(true) {

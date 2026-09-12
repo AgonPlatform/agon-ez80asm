@@ -40,6 +40,25 @@ static anonymousnode_t *nextAnonymous(void) {
 
 // tables
 label_t* globalLabelTable[GLOBAL_LABEL_TABLE_SIZE]; // hash table
+
+// Keep the 0..765 byte offset out of the wide-multiply runtime helper.
+#if defined(__GNUC__)
+__attribute__((always_inline))
+#endif
+static inline label_t **hashBucket(uint8_t index) {
+#ifdef AGONDEV
+    _Static_assert(sizeof(globalLabelTable[0]) == 3, "eZ80 pointer stride must be three bytes");
+    // Keep the two bytes in memory: recombining them in registers makes
+    // LLVM emit a wide left-shift helper. The high byte increments at 86/171.
+    volatile uint16_t offset;
+    volatile unsigned char *bytes = (volatile unsigned char *)&offset;
+    bytes[0] = (uint8_t)(index * 3);
+    bytes[1] = (uint8_t)((index > 85) + (index > 170));
+    return (label_t **)((unsigned char *)globalLabelTable + offset);
+#else
+    return &globalLabelTable[index];
+#endif
+}
 uint24_t globalLabelCounter;
 
 void saveGlobalLabelTable(void) {
@@ -133,8 +152,8 @@ label_t *createUnresolvedLabel(const char *name) {
     node->defined = false;
     node->address = 0;
     index = hash256(key);
-    node->next = globalLabelTable[index];
-    globalLabelTable[index] = node;
+    node->next = (*hashBucket(index));
+    (*hashBucket(index)) = node;
     return node;
 }
 
@@ -146,7 +165,7 @@ void writeAnonymousLabel(uint24_t labelAddress) {
 
 bool insertLabel(const char *labelname, uint8_t len, uint24_t labelAddress, bool local){
     uint8_t index = hash256(labelname);
-    label_t *tmp = globalLabelTable[index], *tail = NULL;
+    label_t *tmp = (*hashBucket(index)), *tail = NULL;
     uint24_t collisions = 0;
 
     /* Retain the insertion slot while checking for an existing definition.
@@ -179,7 +198,7 @@ bool insertLabel(const char *labelname, uint8_t len, uint24_t labelAddress, bool
     tmp->address = labelAddress;
     tmp->next = NULL;
     if(tail) tail->next = tmp;
-    else globalLabelTable[index] = tmp;
+    else (*hashBucket(index)) = tmp;
     labelcollisions += collisions;
     globalLabelCounter++;
     return true;
@@ -210,7 +229,7 @@ label_t *findGlobalLabel(const char *name){
     label_t *try;
 
     index = hash256(name);
-    try = globalLabelTable[index];
+    try = (*hashBucket(index));
 
     while(true)
     {
