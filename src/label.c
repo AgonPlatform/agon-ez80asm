@@ -88,6 +88,7 @@ void initAnonymousLabelTable(void) {
     memset(&anonymousRoot, 0, sizeof(anonymousRoot));
     anonymousCurrent = &anonymousRoot;
     an_return.name = NULL;
+    an_return.defined = true;
 }
 
 label_t * findLocalLabel(const char *key) {
@@ -109,6 +110,34 @@ label_t * findLocalLabel(const char *key) {
     return findGlobalLabel(compoundname);
 }
 
+/* Anonymous labels have a separate position-dependent representation. */
+label_t *internLabel(const char *name) {
+    char compound[(MAXNAMELENGTH * 2)+1];
+    const char *key = name;
+    label_t *node;
+    uint8_t index;
+    if(name[0] == '@') {
+        const char *scope = currentcontentitem->labelscope[0] ? currentcontentitem->labelscope : currentcontentitem->name;
+        if(currentExpandedMacro)
+            snprintf(compound, sizeof(compound), "%X%s%s", currentExpandedMacro->currentExpandID, scope, name);
+        else strcompound(compound, scope, name);
+        key = compound;
+    }
+    node = findGlobalLabel(key);
+    if(node) return node;
+    node = allocateMemory(sizeof(*node), &labelmemsize);
+    if(!node) return NULL;
+    node->name = allocateString(key, &labelmemsize);
+    if(!node->name) { free(node); labelmemsize -= sizeof(*node); return NULL; }
+    node->local = name[0] == '@';
+    node->defined = false;
+    node->address = 0;
+    index = hash256(key);
+    node->next = globalLabelTable[index];
+    globalLabelTable[index] = node;
+    return node;
+}
+
 void writeAnonymousLabel(uint24_t labelAddress) {
     anonymousCurrent->label.address = labelAddress;
     anonymousCurrent->label.scope = contentlevel;
@@ -118,6 +147,17 @@ void writeAnonymousLabel(uint24_t labelAddress) {
 bool insertLabel(const char *labelname, uint8_t len, uint24_t labelAddress, bool local){
     uint8_t index;
     label_t *tmp,*try;
+
+    // Forward references keep this record stable until its definition.
+    tmp = findGlobalLabel(labelname);
+    if(tmp) {
+        if(tmp->defined) { error(message[ERROR_LABELDEFINED], "%s", labelname); return false; }
+        tmp->address = labelAddress;
+        tmp->local = local;
+        tmp->defined = true;
+        globalLabelCounter++;
+        return true;
+    }
 
     // allocate space in buffer for label_t struct
     tmp = (label_t *)allocateMemory(sizeof(label_t), &labelmemsize);
@@ -129,6 +169,7 @@ bool insertLabel(const char *labelname, uint8_t len, uint24_t labelAddress, bool
 
     strcpy(tmp->name, labelname);
     tmp->local = local;
+    tmp->defined = true;
     tmp->address = labelAddress;
     tmp->next = NULL;
 

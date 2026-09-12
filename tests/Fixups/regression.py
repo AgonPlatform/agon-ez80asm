@@ -91,4 +91,24 @@ check('rst vec\nvec: equ 9\n', error='restart')
 check('ld a, 1/value\nvalue: equ 0\n', error='division by zero')
 check('ds count\ncount: equ 2\n', error='identifier')
 check('value: equ later\nlater: equ 3\n', error='identifier')
+# Direct-symbol records share one undefined node, which a definition fills.
+check('org 0\ndl later\ndl later\ndb later+1\nlater: db 9\n',
+      bytes.fromhex('07 00 00 07 00 00 08 09'))
+check('db value\nvalue: equ 1\nvalue: equ 2\n', error='defined')
+# Fast literals retain suffix precedence, $, signed and full-width values.
+check('org 0\ndb 0bh,101b,0x2a\ndw32 -1\ndl $\n',
+      bytes.fromhex('0b 05 2a ff ff ff ff 07 00 00'))
+# The simple resolver must report the use site, not the most recent file/scope.
+check('include "child.s"\nnop\n', error='File "child.s" line 2',
+      files={'child.s': b'nop\ndb missing\n'})
+check('macro load\ndb missing\nendmacro\nload\n', error='Macro [load]')
+check('one:\ndb @missing\ntwo:\n@missing: equ 7\n', error='identifier')
+# Identical labels before the first global remain local to their source file.
+check('include "a.s"\ninclude "b.s"\n', bytes([3, 4]),
+      files={'a.s': b'db @value\n@value: equ 3\n',
+             'b.s': b'db @value\n@value: equ 4\n'})
+# Cursor writes must retain prefix/displacement ordering and pending padding.
+check('org 0\ndb 0\nds 3\nld.lil ix,target\nbit bitno,(iy+disp)\ntarget: nop\n'
+      'bitno: equ 5\ndisp: equ 2\n',
+      bytes.fromhex('00 ff ff ff 5b dd 21 0e 00 00 fd cb 02 6e 00'))
 print(f'{checks} fixup cases passed')

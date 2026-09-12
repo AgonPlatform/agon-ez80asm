@@ -415,7 +415,7 @@ int32_t resolveNumber(char *str, uint8_t length, requiredResult_t requirement) {
     int32_t number;
     label_t *lbl = findLabel(str);
 
-    if(lbl) number = lbl->address;
+    if(lbl && lbl->defined) number = lbl->address;
     else {
         if(*str == '\'') number = getLiteralValue(str);
         else {
@@ -482,7 +482,10 @@ uint8_t copyLiteralToken(const char *from, char *to) {
 // Gets the value from an expression, possible consisting of values, labels and operators
 static int32_t evaluateExpression(char *str, requiredResult_t requirement);
 
-int32_t getExpressionValue(char *str, requiredResult_t requirement) {
+#if defined(__GNUC__)
+__attribute__((noinline))
+#endif
+static int32_t deferredExpression(char *str, requiredResult_t requirement) {
     char saved[MACROLINEMAX + 1];
     int32_t value;
     lastFixup = NULL;
@@ -494,6 +497,47 @@ int32_t getExpressionValue(char *str, requiredResult_t requirement) {
         return 0;
     }
     return value;
+}
+
+/* Single tokens need neither destructive expression parsing nor a saved copy.
+ * Compound expressions retain the original evaluator and full 32-bit rules. */
+int32_t getExpressionValue(char *str, requiredResult_t requirement) {
+    char *start = str, *end, *tail;
+    char terminator;
+    label_t *symbol;
+    int32_t value;
+    lastFixup = NULL;
+    expressionUnknown = false;
+    while(ISSPACE(*start)) start++;
+    end = start;
+    while(!ISEXPRESSIONEND(*end)) end++;
+    tail = end;
+    while(ISSPACE(*tail)) tail++;
+    if(end == start || end - start > MAXNAMELENGTH || *tail || *start == '\'' || *start == '[')
+        return deferredExpression(str, requirement);
+    terminator = *end;
+    *end = 0;
+    symbol = findLabel(start);
+    if(symbol && symbol->defined) {
+        value = symbol->address;
+        *end = terminator;
+        return value;
+    }
+    value = str2num(start, end - start);
+    if(!err_str2num) { *end = terminator; return value; }
+    /* @f/@b and their aliases bind to an anonymous position, not a name. */
+    if(requirement == ALLOW_FORWARD && !resolvingFixups &&
+       !(start[0] == '@' && start[1] && !start[2] &&
+         (TOLOWER(start[1]) == 'f' || TOLOWER(start[1]) == 'n' ||
+          TOLOWER(start[1]) == 'b' || TOLOWER(start[1]) == 'p'))) {
+        symbol = internLabel(start);
+        if(symbol) lastFixup = captureSymbolFixup(symbol, start);
+        expressionUnknown = true;
+        *end = terminator;
+        return 0;
+    }
+    *end = terminator;
+    return deferredExpression(str, requirement);
 }
 
 static int32_t evaluateExpression(char *str, requiredResult_t requirement) {

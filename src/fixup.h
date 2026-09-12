@@ -9,6 +9,8 @@ extern fixup_t *lastFixup;
 extern bool expressionUnknown, resolvingFixups;
 extern uint24_t fixupmemsize, fixupmempeak;
 fixup_t *captureFixup(const char *expression);
+fixup_t *captureSymbolFixup(label_t *symbol, const char *name);
+void attachFixupAt(fixup_t *f, uint8_t kind, uint24_t count, uint8_t opcode, uint24_t offset);
 void negateFixup(fixup_t *f);
 void attachFixup(fixup_t *f, uint8_t kind, uint24_t count, uint8_t opcode);
 void resolveFixups(void);

@@ -288,6 +288,7 @@ typedef struct {
 typedef struct {
     char*           name;
     bool            local;
+    bool            defined;
     void*           next;
     uint24_t        address;
 } label_t;

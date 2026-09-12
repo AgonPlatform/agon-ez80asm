@@ -18,6 +18,9 @@ void ioWrite(uint8_t fh, const char *s, uint24_t size);
 bool ioInit(const char *input_filename, const char *output_filename); // init - called once at start
 uint24_t ioOutputPosition(void);
 unsigned char ioReadOutputByte(uint24_t position);
+void ioPatchValue(uint24_t position, const int32_t *value, uint8_t width);
+unsigned char *ioReserveInstruction(void);
+void ioCommitInstruction(uint8_t length);
 void ioPatchByte(uint24_t position, unsigned char value);
 void ioClose(void);                                // close everything at end, do cleanup
 void ioPutc(uint8_t fh, unsigned char c);

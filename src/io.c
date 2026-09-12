@@ -70,6 +70,50 @@ void ioPatchByte(uint24_t position, unsigned char value) {
     windowDirty = true;
 }
 
+/* Select once per field. The byte fallback handles fields crossing windows. */
+void ioPatchValue(uint24_t position, const int32_t *value, uint8_t width) {
+    unsigned char bytes[4];
+    unsigned char *dst;
+    if(width < 1 || width > 4 || position > outputSize || width > outputSize - position) {
+        error(message[ERROR_INTERNAL], 0);
+        return;
+    }
+    bytes[0] = (uint8_t)*value;
+    bytes[1] = (uint8_t)((uint32_t)*value >> 8);
+    bytes[2] = (uint8_t)((uint32_t)*value >> 16);
+    bytes[3] = (uint8_t)((uint32_t)*value >> 24);
+    if(!selectWindow(position)) return;
+    if(width <= windowUsed - (position - windowStart)) {
+        dst = outputBuffer + (position - windowStart);
+        dst[0] = bytes[0];
+        if(width > 1) dst[1] = bytes[1];
+        if(width > 2) dst[2] = bytes[2];
+        if(width > 3) dst[3] = bytes[3];
+        windowDirty = true;
+    }
+    else {
+        uint8_t i;
+        for(i = 0; i < width && !errorcount; i++) ioPatchByte(position + i, bytes[i]);
+    }
+}
+
+/* No early flush: preserve aligned windows and the exact-64-KiB resident case.
+ * Sixteen bytes bound every encoding supported by the instruction tables.
+ * Listings and boundary instructions retain the ordinary byte emitter. */
+unsigned char *ioReserveInstruction(void) {
+    if(listing || errorcount) return NULL;
+    if(remaining_dsspaces) ioFlushDSSpaces();
+    if(errorcount || OUTPUT_BUFFERSIZE - windowUsed < 16) return NULL;
+    return outputBuffer + windowUsed;
+}
+
+void ioCommitInstruction(uint8_t length) {
+    windowUsed += length;
+    outputSize += length;
+    address += length;
+    windowDirty = true;
+}
+
 #ifdef AGONDEV
     // platform-specific for Agon AGONDEV
     int remove(const char *filename) {

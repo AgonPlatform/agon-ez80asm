@@ -4,6 +4,7 @@
 #include "defines.h"
 
 label_t *findLabel(const char *name);
+label_t *internLabel(const char *name);
 void initGlobalLabelTable(void);
 void initAnonymousLabelTable(void);
 void writeAnonymousLabel(uint24_t address);

@@ -189,13 +189,13 @@ uint8_t getADLsuffix(void) {
     return 0;
 }
 
-static void attachOpcodeFixups(const operandlist_t *list) {
+static void attachOpcodeFixups(const operandlist_t *list, uint24_t position) {
     if(!operand1.fixup) return;
     switch(list->transformA) {
         case TRANSFORM_Y:
-        case TRANSFORM_BIT: attachFixup(operand1.fixup, FIX_BIT, 1, output.opcode); break;
-        case TRANSFORM_N: attachFixup(operand1.fixup, FIX_RST, 1, output.opcode); break;
-        case TRANSFORM_SELECT: attachFixup(operand1.fixup, FIX_IM, 1, output.opcode); break;
+        case TRANSFORM_BIT: attachFixupAt(operand1.fixup, FIX_BIT, 1, output.opcode, position); break;
+        case TRANSFORM_N: attachFixupAt(operand1.fixup, FIX_RST, 1, output.opcode, position); break;
+        case TRANSFORM_SELECT: attachFixupAt(operand1.fixup, FIX_IM, 1, output.opcode, position); break;
     }
 }
 
@@ -246,6 +246,73 @@ void emit_instruction(const operandlist_t *list) {
     ddbeforeopcode = (((output.prefix1 == 0xDD) || (output.prefix1 == 0xFD)) && (output.prefix2 == 0xCB) &&
                 (list->flags & (F_DISPA|F_DISPB)));
     
+    {
+        unsigned char *start = ioReserveInstruction();
+        if(start) {
+            unsigned char *cursor = start;
+            uint24_t base = ioOutputPosition();
+#define PUT(value) (*cursor++ = (uint8_t)(value))
+#define PUT_IMMEDIATE(op) do { \
+    uint8_t width = get_immediate_size(output.suffix); \
+    if((op).fixup) attachFixupAt((op).fixup, width, 1, 0, base + (cursor - start)); \
+    PUT((op).immediate); \
+    PUT((uint32_t)(op).immediate >> 8); \
+    if(width == 2) validateRange16bit(&(op).immediate, (op).immediate_name); \
+    if(width == 3) PUT((uint32_t)(op).immediate >> 16); \
+} while(0)
+            // output adl suffix and any prefixes
+            if(output.suffix) {
+                switch(output.suffix) {
+                    case S_SIS: PUT(CODE_SIS); break;
+                    case S_LIS: PUT(CODE_LIS); break;
+                    case S_SIL: PUT(CODE_SIL); break;
+                    case S_LIL: PUT(CODE_LIL); break;
+                }
+            }
+            if(output.prefix1) PUT(output.prefix1);
+            if(output.prefix2) PUT(output.prefix2);
+
+            // opcode in normal position
+            if(!ddbeforeopcode) {
+                if(operand1.fixup) attachOpcodeFixups(list, base + (cursor - start));
+                PUT(output.opcode);
+            }
+
+            // output displacement
+            if(list->flags & F_DISPA) {
+                if(operand1.fixup) attachFixupAt(operand1.fixup, FIX_DISP, 1, 0, base + (cursor - start));
+                PUT(operand1.displacement);
+            }
+            if(list->flags & F_DISPB) {
+                if(operand2.fixup) attachFixupAt(operand2.fixup, FIX_DISP, 1, 0, base + (cursor - start));
+                PUT(operand2.displacement);
+            }
+
+            // output n
+            if((operand1.immediate_provided) && (list->conditionsA & IMM_N)) {
+                if(operand1.fixup) attachFixupAt(operand1.fixup, fixkindA, 1, 0, base + (cursor - start));
+                PUT(operand1.immediate);
+            }
+            if((operand2.immediate_provided) && (list->conditionsB & IMM_N)) {
+                if(operand2.fixup) attachFixupAt(operand2.fixup, fixkindB, 1, 0, base + (cursor - start));
+                PUT(operand2.immediate);
+            }
+
+            // opcode in DDCBdd/DFCBdd position
+            if(ddbeforeopcode) {
+                if(operand1.fixup) attachOpcodeFixups(list, base + (cursor - start));
+                PUT(output.opcode);
+            }
+
+            //output remaining immediate bytes
+            if(list->conditionsA & IMM_MMN) PUT_IMMEDIATE(operand1);
+            if(list->conditionsB & IMM_MMN) PUT_IMMEDIATE(operand2);
+            ioCommitInstruction(cursor - start);
+#undef PUT_IMMEDIATE
+#undef PUT
+            return;
+        }
+    }
     // output adl suffix and any prefixes
     if(output.suffix) emit_adlsuffix_code(output.suffix);
     if(output.prefix1) emit_8bit(output.prefix1);
@@ -253,7 +320,7 @@ void emit_instruction(const operandlist_t *list) {
 
     // opcode in normal position
     if(!ddbeforeopcode) {
-        if(operand1.fixup) attachOpcodeFixups(list);
+        if(operand1.fixup) attachOpcodeFixups(list, ioOutputPosition() + remaining_dsspaces);
         emit_8bit(output.opcode);
     }
     
@@ -279,7 +346,7 @@ void emit_instruction(const operandlist_t *list) {
 
     // opcode in DDCBdd/DFCBdd position
     if(ddbeforeopcode) {
-        if(operand1.fixup) attachOpcodeFixups(list);
+        if(operand1.fixup) attachOpcodeFixups(list, ioOutputPosition() + remaining_dsspaces);
         emit_8bit(output.opcode);
     }
 
