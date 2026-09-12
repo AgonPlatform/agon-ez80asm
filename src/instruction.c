@@ -205,7 +205,7 @@ void emit_instruction(const operandlist_t *list) {
     uint8_t fixkindA = 1, fixkindB = 1;
 
     // Transform necessary prefix/opcode in output, according to given list and operands
-    output.suffix = getADLsuffix();
+    output.suffix = currentline.suffixpresent ? getADLsuffix() : 0;
     output.prefix1 = 0;
     output.prefix2 = list->prefix;
     output.opcode = list->opcode;
