@@ -137,6 +137,20 @@ static int32_t resolveExpression(fixup_t *f) {
     return getExpressionValue(expression, REQUIRED_NOW);
 }
 
+// Keep the value behind a pointer: inlining these checks lets the eZ80
+// compiler replace byte loads with expensive 32-bit shift helpers.
+#if defined(__GNUC__)
+__attribute__((noinline))
+#endif
+static bool fixupOutOfRange(const int32_t *value, uint8_t width) {
+    switch(width) {
+        case 1: return OUTOFRANGE8(value);
+        case 2: return OUTOFRANGE16(value);
+        case 3: return OUTOFRANGE24(value);
+        default: return false;
+    }
+}
+
 void resolveFixups(void) {
     fixup_t *f;
     uint24_t savedAddress = address;
@@ -170,19 +184,19 @@ void resolveFixups(void) {
                     FIX_WARNING(message[WARNING_UNSUPPORTED_INITIALIZER], "%s", expression);
                 continue;
             case 1:
-                if(!ignore_truncation_warnings && OUTOFRANGE8(&value)) {
+                if(!ignore_truncation_warnings && fixupOutOfRange(&value, 1)) {
                     if(f->simple) restoreContext(f);
                     validateRange8bit(&value, expression);
                 }
                 break;
             case 2:
-                if(!ignore_truncation_warnings && OUTOFRANGE16(&value)) {
+                if(!ignore_truncation_warnings && fixupOutOfRange(&value, 2)) {
                     if(f->simple) restoreContext(f);
                     validateRange16bit(&value, expression);
                 }
                 break;
             case 3:
-                if(!ignore_truncation_warnings && OUTOFRANGE24(&value)) {
+                if(!ignore_truncation_warnings && fixupOutOfRange(&value, 3)) {
                     if(f->simple) restoreContext(f);
                     validateRange24bit(&value, expression);
                 }

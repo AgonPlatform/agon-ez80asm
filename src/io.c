@@ -72,16 +72,23 @@ void ioPatchByte(uint24_t position, unsigned char value) {
 
 /* Select once per field. The byte fallback handles fields crossing windows. */
 void ioPatchValue(uint24_t position, const int32_t *value, uint8_t width) {
+#ifdef AGONDEV
+    // eZ80 stores int32_t little-endian; read its object representation directly.
+    const unsigned char *bytes = (const unsigned char *)value;
+#else
     unsigned char bytes[4];
+#endif
     unsigned char *dst;
     if(width < 1 || width > 4 || position > outputSize || width > outputSize - position) {
         error(message[ERROR_INTERNAL], 0);
         return;
     }
+#ifndef AGONDEV
     bytes[0] = (uint8_t)*value;
     bytes[1] = (uint8_t)((uint32_t)*value >> 8);
     bytes[2] = (uint8_t)((uint32_t)*value >> 16);
     bytes[3] = (uint8_t)((uint32_t)*value >> 24);
+#endif
     if(!selectWindow(position)) return;
     if(width <= windowUsed - (position - windowStart)) {
         dst = outputBuffer + (position - windowStart);
@@ -145,7 +152,7 @@ uint24_t ioGetfilesize(FILE *fh) {
         fseek(fh, 0, SEEK_END);
         filesize = ftell(fh);
         fseek(fh, 0, SEEK_SET);
-    #endif
+#endif
 
     return filesize;
 }
