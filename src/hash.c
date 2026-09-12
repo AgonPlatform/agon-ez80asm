@@ -45,7 +45,7 @@ uint8_t hash256(const char *key) {
     
     if (*key == 0) return 0;
     while (*key) {
-        h = pearson[h ^ *key];
+        h = pearson[(uint8_t)(h ^ (uint8_t)*key)];
         key++;
     }
     return h;
