@@ -453,7 +453,6 @@ void parse_operand(char *string, uint8_t len, operand_t *operand) {
 void parseLine(char *src) {
     uint8_t oplength = 0;
     bool asmcmd = false;
-    uint8_t state;
     uint8_t argcount = 0;
     streamtoken_t streamtoken;
     bool unknown3rdoperand = true;
@@ -463,145 +462,124 @@ void parseLine(char *src) {
     memset(&operand1, 0, (sizeof(operand_t) - sizeof(operand1.immediate_name) + 1));
     memset(&operand2, 0, (sizeof(operand_t) - sizeof(operand2.immediate_name) + 1));
 
-    state = PS_START;
-    while(true) {
-        switch(state) {
-            case PS_START:
-                if(getMnemonicToken(&streamtoken, src)) {
-                    if(streamtoken.terminator == ':') {
-                        state = PS_LABEL;
-                        break;
-                    }
-                    state = PS_COMMAND;
-                    break;
-                }
-                state = PS_COMMENT;
-                break;
-            case PS_LABEL:
-                currentline.label = streamtoken.start;
-                advanceAnonymousLabel();
-                if(getMnemonicToken(&streamtoken, streamtoken.next)) {
-                    if(streamtoken.terminator == ':') {
-                        error(message[ERROR_SYNTAX],0);
-                        break;
-                    }
-                    state = PS_COMMAND;                
-                    break;
-                }
-                state = PS_COMMENT;
-                break;
-            case PS_COMMAND:
-                if(streamtoken.start[0] == '.') {
-                    // should be an assembler command
-                    asmcmd = true;
-                    currentline.mnemonic = streamtoken.start;
-                }
-                else parse_command(streamtoken.start); // ez80 split suffix and set mnemonic for search
-
-                currentline.current_instruction = instruction_lookup(currentline.mnemonic);
-                if(currentline.current_instruction == NULL) {
-                    if(!asmcmd) {
-                        error(message[ERROR_INVALIDMNEMONIC],"%s",currentline.mnemonic);
-                        return;
-                    }
-                    // Check for assembler command
-                    currentline.mnemonic = streamtoken.start + 1;
-                    currentline.current_instruction = instruction_lookup(currentline.mnemonic);
-                    if((currentline.current_instruction == NULL) ||
-                       (currentline.current_instruction->type != ASSEMBLER)) {
-                        error(message[ERROR_INVALIDMNEMONIC],"%s",currentline.mnemonic);
-                        return;
-                    }
-                    // Valid assembler command found (with a .)
-                }
-                if((streamtoken.terminator == ';') || (streamtoken.terminator == 0)) 
-                    currentline.next = NULL;
-                else currentline.next = streamtoken.next;
-
-                switch(currentline.current_instruction->type) {
-                    case EZ80:
-                        if(currentline.next) {
-                            oplength = getOperandToken(&streamtoken, currentline.next);
-                            if(oplength) {
-                                state = PS_OP;
-                                break;
-                            }
-                        }
-                        return; // ignore any comments
-                        break;
-                    case ASSEMBLER:
-                        return;
-                    case MACRO:
-                        currentline.current_macro = currentline.current_instruction->macro;
-                        currentline.current_instruction = NULL;
-                        return;
-                }
-                break;
-            case PS_OP:
-                argcount++;   
-                if(currentExpandedMacro) {
-                    macroExpandArg(macro_expansionbuffer, streamtoken.start, currentExpandedMacro);
-                    streamtoken.start = macro_expansionbuffer;
-                    oplength = strlen(streamtoken.start);
-                }
-                // Only actually parse operands if we are in NORMAL/TRUE conditional state
-                // We need this parser to parse up to the .else/.endif statement, or require partly duplicate parser code just for the conditional parsing
-                if(inConditionalSection != CONDITIONSTATE_FALSE) {
-                    if(argcount == 1) {
-                        parse_operand(streamtoken.start, oplength, &operand1);
-                    }
-                    else {
-                        parse_operand(streamtoken.start, oplength, &operand2);
-                    }
-                }
-                switch(streamtoken.terminator) {
-                    case ';':
-                        currentline.next = streamtoken.next;
-                        state = PS_COMMENT;
-                        break;
-                    case 0:
-                        currentline.next = NULL;
-                        return;
-                    case ',':
-                        if(argcount == 2) {
-                            if(unknown3rdoperand && ((strcasecmp(currentline.mnemonic, "res") == 0) || (strcasecmp(currentline.mnemonic, "set") == 0))) {
-                                uint8_t bitnumber = str2num(operand1.immediate_name, strlen(operand1.immediate_name)); // this undocumented form requires a literal bit number
-                                // Handle 3rd operand in undocumented Z80 instructions RES0-7/SET0-7
-                                if((!operand1.immediate_provided) || (bitnumber > 7)){
-                                    error(message[ERROR_INVALIDBITNUMBER],"%s",operand1.immediate_name);
-                                    return;
-                                }
-                                // now map to the intended undocumented instruction - SET -> SET0-7 or RES -> RES0-7
-                                char tmpmnemonicname[MAX_MNEMONIC_SIZE];
-                                snprintf(tmpmnemonicname, MAX_MNEMONIC_SIZE, "%s%d", currentline.mnemonic, bitnumber);
-                                currentline.current_instruction = instruction_lookup(tmpmnemonicname);
-                                if(!currentline.current_instruction) {
-                                    error(message[ERROR_INTERNAL],0);
-                                    return;
-                                }
-                                unknown3rdoperand = false; // any next operand should throw an error
-                                operand1 = operand2; // switch operands
-                                memset(&operand2, 0, (sizeof(operand_t) - sizeof(operand2.immediate_name) + 1));
-                                argcount--;
-                            }
-                            else {
-                                error(message[ERROR_TOOMANYARGUMENTS],0);
-                                return;
-                            }
-                        }
-                        oplength = getOperandToken(&streamtoken, streamtoken.next);
-                        if(oplength == 0) {
-                            error(message[ERROR_MISSINGOPERAND],0);
-                            return;
-                        }
-                        break;
-                }
-                break;
-            case PS_COMMENT:
-                currentline.comment = currentline.next;
-                return;
+    if(!getMnemonicToken(&streamtoken, src)) goto comment;
+    while(streamtoken.terminator == ':') {
+        currentline.label = streamtoken.start;
+        advanceAnonymousLabel();
+        if(!getMnemonicToken(&streamtoken, streamtoken.next)) goto comment;
+        if(streamtoken.terminator == ':') {
+            error(message[ERROR_SYNTAX],0);
         }
     }
+
+    if(streamtoken.start[0] == '.') {
+        // should be an assembler command
+        asmcmd = true;
+        currentline.mnemonic = streamtoken.start;
+    }
+    else parse_command(streamtoken.start); // ez80 split suffix and set mnemonic for search
+
+    currentline.current_instruction = instruction_lookup(currentline.mnemonic);
+    if(currentline.current_instruction == NULL) {
+        if(!asmcmd) {
+            error(message[ERROR_INVALIDMNEMONIC],"%s",currentline.mnemonic);
+            return;
+        }
+        // Check for assembler command
+        currentline.mnemonic = streamtoken.start + 1;
+        currentline.current_instruction = instruction_lookup(currentline.mnemonic);
+        if((currentline.current_instruction == NULL) ||
+           (currentline.current_instruction->type != ASSEMBLER)) {
+            error(message[ERROR_INVALIDMNEMONIC],"%s",currentline.mnemonic);
+            return;
+        }
+        // Valid assembler command found (with a .)
+    }
+    if((streamtoken.terminator == ';') || (streamtoken.terminator == 0)) 
+        currentline.next = NULL;
+    else currentline.next = streamtoken.next;
+
+    switch(currentline.current_instruction->type) {
+        case EZ80:
+            if(currentline.next) {
+                oplength = getOperandToken(&streamtoken, currentline.next);
+                if(oplength) {
+                    goto operands;
+                }
+            }
+            return; // ignore any comments
+        case ASSEMBLER:
+            return;
+        case MACRO:
+            currentline.current_macro = currentline.current_instruction->macro;
+            currentline.current_instruction = NULL;
+            return;
+    }
+    return;
+
+operands:
+    for(;;) {
+        argcount++;   
+        if(currentExpandedMacro) {
+            macroExpandArg(macro_expansionbuffer, streamtoken.start, currentExpandedMacro);
+            streamtoken.start = macro_expansionbuffer;
+            oplength = strlen(streamtoken.start);
+        }
+        // Only actually parse operands if we are in NORMAL/TRUE conditional state
+        // We need this parser to parse up to the .else/.endif statement, or require partly duplicate parser code just for the conditional parsing
+        if(inConditionalSection != CONDITIONSTATE_FALSE) {
+            if(argcount == 1) {
+                parse_operand(streamtoken.start, oplength, &operand1);
+            }
+            else {
+                parse_operand(streamtoken.start, oplength, &operand2);
+            }
+        }
+        switch(streamtoken.terminator) {
+            case ';':
+                currentline.next = streamtoken.next;
+                goto comment;
+            case 0:
+                currentline.next = NULL;
+                return;
+            case ',':
+                if(argcount == 2) {
+                    if(unknown3rdoperand && ((strcasecmp(currentline.mnemonic, "res") == 0) || (strcasecmp(currentline.mnemonic, "set") == 0))) {
+                        uint8_t bitnumber = str2num(operand1.immediate_name, strlen(operand1.immediate_name)); // this undocumented form requires a literal bit number
+                        // Handle 3rd operand in undocumented Z80 instructions RES0-7/SET0-7
+                        if((!operand1.immediate_provided) || (bitnumber > 7)){
+                            error(message[ERROR_INVALIDBITNUMBER],"%s",operand1.immediate_name);
+                            return;
+                        }
+                        // now map to the intended undocumented instruction - SET -> SET0-7 or RES -> RES0-7
+                        char tmpmnemonicname[MAX_MNEMONIC_SIZE];
+                        snprintf(tmpmnemonicname, MAX_MNEMONIC_SIZE, "%s%d", currentline.mnemonic, bitnumber);
+                        currentline.current_instruction = instruction_lookup(tmpmnemonicname);
+                        if(!currentline.current_instruction) {
+                            error(message[ERROR_INTERNAL],0);
+                            return;
+                        }
+                        unknown3rdoperand = false; // any next operand should throw an error
+                        operand1 = operand2; // switch operands
+                        memset(&operand2, 0, (sizeof(operand_t) - sizeof(operand2.immediate_name) + 1));
+                        argcount--;
+                    }
+                    else {
+                        error(message[ERROR_TOOMANYARGUMENTS],0);
+                        return;
+                    }
+                }
+                oplength = getOperandToken(&streamtoken, streamtoken.next);
+                if(oplength == 0) {
+                    error(message[ERROR_MISSINGOPERAND],0);
+                    return;
+                }
+                break;
+        }
+    }
+
+comment:
+    currentline.comment = currentline.next;
 }
 
 // Parse an immediate value from currentline.next
