@@ -169,7 +169,6 @@ uint8_t getMnemonicToken(streamtoken_t *token, char *src) {
 // returns the number of Operator characters found, or 0 if none
 uint8_t getOperandToken(streamtoken_t *token, char *src) {
     uint8_t length = 0;
-    bool inliteral = false;
 
     // skip leading space
     while(*src == ' ') src++;
@@ -180,27 +179,26 @@ uint8_t getOperandToken(streamtoken_t *token, char *src) {
     }
     token->start = src;
 
-    // hunt for end-character (0 , or ; in normal non-literal mode)
-    //
-    // Only three characters can matter, so ordinary ones get past on three
-    // comparisons with no state to load; the literal flag is only consulted
-    // once one of the three turns up.
-    while(*src) {
-        if((*src == ',') || (*src == ';') || (*src == '\'')) {
-            if(*src == '\'') {
-                if(inliteral) {
-                    if(*(src+1) == '\'') {
-                        src++;
-                        length++;
-                    }
-                    inliteral = false;
-                }
-                else inliteral = true;
-            }
-            else if(!inliteral) break;
-        }
+    // Scan ordinary text without carrying quote state through every character.
+    // Preserve the existing rule: a doubled closing quote is consumed too.
+    for(;;) {
+        char c = *src;
+        if(c == 0 || c == ',' || c == ';') break;
         src++;
         length++;
+        if(c != '\'') continue;
+        while(*src && *src != '\'') {
+            src++;
+            length++;
+        }
+        if(*src) {
+            src++;
+            length++;
+            if(*src == '\'') {
+                src++;
+                length++;
+            }
+        }
     }
 
     token->terminator = *src;
