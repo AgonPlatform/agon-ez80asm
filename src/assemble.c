@@ -38,25 +38,28 @@ contentitem_t *findContent(const char *filename) {
 contentitem_t *insertContent(const char *filename) {
     contentitem_t *ci, *try;
     uint8_t index;
+    uint24_t previoussize = filecontentsize;
 
     // Allocate memory and fill out ci content
     ci = allocateMemory(sizeof(contentitem_t), &filecontentsize);
     if(ci == NULL) return NULL;
+    memset(ci, 0, sizeof(*ci));
     ci->name = allocateString(filename, &filecontentsize);
-    if(ci->name == NULL) return NULL;
+    if(ci->name == NULL) goto fail;
 
     if(completefilebuffering) {
         ci->fh = ioOpenfile(filename, "rb");
-        if(ci->fh == 0) return NULL;
+        if(ci->fh == 0) goto fail;
         ci->size = ioGetfilesize(ci->fh);
         ci->buffer = allocateMemory(ci->size+1, &filecontentsize);
-        if(ci->buffer == NULL) return NULL;
+        if(ci->buffer == NULL) goto fail;
         if(fread(ci->buffer, 1, ci->size, ci->fh) != ci->size) {
             error(message[ERROR_READINGINPUT],0);
-            return NULL;
+            goto fail;
         }
         ci->buffer[ci->size] = 0; // terminate stringbuffer
         fclose(ci->fh);
+        ci->fh = NULL;
     }
     strcpy(ci->labelscope, ""); // empty scope
     ci->next = NULL;
@@ -80,6 +83,14 @@ contentitem_t *insertContent(const char *filename) {
             return ci;
         }
     }
+
+fail:
+    if(ci->fh) fclose(ci->fh);
+    free(ci->buffer);
+    free(ci->name);
+    free(ci);
+    filecontentsize = previoussize;
+    return NULL;
 }
 
 // Parse a command-token string to currentline.mnemonic & currentline.suffix
@@ -1387,9 +1398,15 @@ void processContent(const char *filename) {
     if((ci = findContent(filename)) == NULL) {
         if(pass == STARTPASS) {
             ci = insertContent(filename);
-            if(ci == NULL) return;
+            if(ci == NULL) {
+                decreasecontentlevel();
+                return;
+            }
         }
-        else return;
+        else {
+            decreasecontentlevel();
+            return;
+        }
     }
     openContentInput(ci, iobuffer);
     // Process

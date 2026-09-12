@@ -20,6 +20,7 @@ void *allocateMemory(size_t size, uint24_t *bytecounter) {
     void *ptr = malloc(size);
     if(ptr == NULL) {
         error(message[ERROR_MEMORY],0);
+        return NULL;
     }
     *bytecounter += size;
     return ptr;
