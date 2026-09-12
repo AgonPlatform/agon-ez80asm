@@ -253,7 +253,7 @@ void emit_instruction(const operandlist_t *list) {
             uint24_t base = ioOutputPosition();
 #define PUT(value) (*cursor++ = (uint8_t)(value))
 #define PUT_IMMEDIATE(op) do { \
-    uint8_t width = get_immediate_size(output.suffix); \
+    uint8_t width = output.suffix ? get_immediate_size(output.suffix) : (adlmode ? 3 : 2); \
     if((op).fixup) attachFixupAt((op).fixup, width, 1, 0, base + (cursor - start)); \
     PUT((op).immediate); \
     PUT((uint32_t)(op).immediate >> 8); \
