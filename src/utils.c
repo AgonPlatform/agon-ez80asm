@@ -14,6 +14,7 @@
 #include "instruction.h"
 #include "io.h"
 #include "assemble.h"
+#include "fixup.h"
 
 // memory allocate size bytes, raise error if not available
 void *allocateMemory(size_t size, uint24_t *bytecounter) {
@@ -410,11 +411,9 @@ uint8_t getLiteralValue(const char *string) {
 // Resolves a number from a string in this order:
 // 1) Check if a label exists with this name
 // 2) If not, try converting it to a number with str2num
-int32_t resolveNumber(char *str, uint8_t length, requiredResult_t requiredPass) {
+int32_t resolveNumber(char *str, uint8_t length, requiredResult_t requirement) {
     int32_t number;
     label_t *lbl = findLabel(str);
-
-    if((pass == STARTPASS) && (requiredPass == REQUIRED_LASTPASS)) return 0;
 
     if(lbl) number = lbl->address;
     else {
@@ -422,6 +421,10 @@ int32_t resolveNumber(char *str, uint8_t length, requiredResult_t requiredPass) 
         else {
             number = str2num(str, length?length:strlen(str));
             if(err_str2num) {
+                if(requirement == ALLOW_FORWARD && !resolvingFixups) {
+                    expressionUnknown = true;
+                    return 0;
+                }
                 error(message[ERROR_IDENTIFIER], "%s", str);                            
                 return 0;
             }
@@ -477,7 +480,23 @@ uint8_t copyLiteralToken(const char *from, char *to) {
 }
 
 // Gets the value from an expression, possible consisting of values, labels and operators
-int32_t getExpressionValue(char *str, requiredResult_t requiredPass) {
+static int32_t evaluateExpression(char *str, requiredResult_t requirement);
+
+int32_t getExpressionValue(char *str, requiredResult_t requirement) {
+    char saved[MACROLINEMAX + 1];
+    int32_t value;
+    lastFixup = NULL;
+    expressionUnknown = false;
+    if(requirement == ALLOW_FORWARD && !resolvingFixups) strcpy(saved, str);
+    value = evaluateExpression(str, requirement);
+    if(expressionUnknown && !errorcount) {
+        lastFixup = captureFixup(saved);
+        return 0;
+    }
+    return value;
+}
+
+static int32_t evaluateExpression(char *str, requiredResult_t requirement) {
     uint8_t tmplength;
     streamtoken_t token;
     char buffer[LINEMAX+1];
@@ -485,9 +504,7 @@ int32_t getExpressionValue(char *str, requiredResult_t requiredPass) {
     char operator, unaryoperator;
     int32_t tmp = 0;
     int32_t total = 0;
-    getValueState_t state;;
-
-    if((pass == STARTPASS) && (requiredPass == REQUIRED_LASTPASS)) return 0;
+    getValueState_t state;
 
     while(ISSPACE(*str)) str++; // eat all spaces
     errptr = str;
@@ -564,20 +581,20 @@ int32_t getExpressionValue(char *str, requiredResult_t requiredPass) {
                     case '\'':
                         tmplength = copyLiteralToken(str, buffer);
                         str += tmplength;
-                        tmp = resolveNumber(buffer, tmplength, requiredPass);
+                        tmp = resolveNumber(buffer, tmplength, requirement);
                         break;
                     case '[':
                         if(getBracketToken(&token, str) == 0) {
                             error(message[ERROR_BRACKETFORMAT],0);
                             return 0;
                         }
-                        tmp = getExpressionValue(token.start, requiredPass);
+                        tmp = evaluateExpression(token.start, requirement);
                         str = token.next;
                         break;
                     default:
                         while(!ISEXPRESSIONEND(*str)) *bufptr++ = *str++;
                         *bufptr = 0; // terminate string in buffer
-                        tmp = resolveNumber(buffer, bufptr - buffer, requiredPass);
+                        tmp = resolveNumber(buffer, bufptr - buffer, requirement);
                         break;
                 }
                 
@@ -586,7 +603,8 @@ int32_t getExpressionValue(char *str, requiredResult_t requiredPass) {
                     if(unaryoperator == '~') tmp = ~tmp;
                 }
 
-                switch(operator) {
+                // Still validate syntax, but never calculate with unresolved values.
+                if(!expressionUnknown) switch(operator) {
                     case 0:
                     case '+': total += tmp; break;
                     case '-': total -= tmp; break;
@@ -597,7 +615,9 @@ int32_t getExpressionValue(char *str, requiredResult_t requiredPass) {
                     case '|': total = total | tmp;  break;
                     case '^': total = total ^ tmp;  break;
                     case '~': total = total + ~tmp; break;
-                    case '/': total = total / tmp;  break;
+                    case '/':
+                        if(!tmp) { error("Division by zero", 0); return 0; }
+                        total = total / tmp; break;
                     default:
                         error(message[ERROR_OPERATOR],"%c",operator);
                         return 0;

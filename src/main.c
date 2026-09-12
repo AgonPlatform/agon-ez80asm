@@ -14,6 +14,7 @@
 #include "label.h"
 #include "macro.h"
 #include "io.h"
+#include "fixup.h"
 #include "str2num.h"
 #include "instruction.h"
 
@@ -51,6 +52,7 @@ void displayStatistics(void) {
         outputsize = ioGetfilesize(fh);
         fclose(fh);
     }
+    printf("Output window        : %6lu\nFixup memory (peak)  : %6d\n", (unsigned long)OUTPUT_BUFFERSIZE, fixupmempeak);
     printf("\nAssembly statistics\n=============================\nLabel memory         : %6d\nLabels               : %6d\n\nMacro memory         : %6d\nMacros               : %6d\n\nInput buffers        : %6d\n-----------------------------\nTotal dynamic memory : %6d\n\nSources parsed       : %6d\nBinfiles read        : %6d\n\nOutput size          : %6d\n\n", labelmemsize, getGlobalLabelCount(), macromemsize, macroCounter, filecontentsize, labelmemsize+macromemsize+filecontentsize, sourcefilecount, binfilecount, outputsize);
 }
 

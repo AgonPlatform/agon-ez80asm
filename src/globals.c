@@ -19,7 +19,7 @@ uint16_t binfilecount;
 uint24_t filecontentsize;
 bool completefilebuffering;
 unsigned int macrolinenumber;
-unsigned int pass;
+
 conditionalstate_t inConditionalSection;
 macro_t *currentExpandedMacro;
 uint8_t macrolevel;

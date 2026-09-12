@@ -178,6 +178,7 @@ typedef struct {
     bool            immediate_provided;
     int32_t         immediate;
     uint8_t         addressmode;
+    struct fixup *  fixup;                 // unresolved immediate or displacement
     char            immediate_name[LINEMAX+1];
     // No new members after previous array: the array isn't FULLY cleared every init of operand_t, only the first byte is set to 0
 } operand_t;
@@ -371,14 +372,13 @@ typedef enum {
 
 typedef enum {
     FILE_OUTPUT,
-    FILE_ANONYMOUS_LABELS,
     FILE_LISTING,
 } outputfile_t;
 
 // requiredResult
 typedef enum {
-    REQUIRED_FIRSTPASS,
-    REQUIRED_LASTPASS
+    REQUIRED_NOW,
+    ALLOW_FORWARD
 } requiredResult_t;
 
 // ERROR LEVELS

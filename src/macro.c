@@ -173,67 +173,57 @@ void macroExpandArg(char *dst, const char *src, const macro_t *m) {
 
 // read to temporary macro buffer
 char * readMacroBody(contentitem_t *ci) {
-    char *buffer = NULL, *bufptr;
-    bool foundend = false;
+    char *body = NULL;
+    size_t used = 0, capacity = 0;
     char macroline[LINEMAX+1];
-    uint16_t linelength,macrolength;
-    uint24_t filestartpos = ci->filepos;
-    uint16_t linestoread = 0;
-    char *tmp;
-
-    if(pass == ENDPASS && (listing)) listEndLine(); // print out first line of macro definition
-
-    // Parse macro body and find length first
-    foundend = false;
-    macrolength = 0;
-    while((linelength = getnextContentLine(macroline, ci))) {
+    uint16_t length;
+    if(listing) listEndLine();
+    while((length = getnextContentLine(macroline, ci))) {
+        char *tmp = macroline;
+        uint8_t skipdot;
         ci->currentlinenumber++;
-        tmp = macroline;
-
-        if(pass == ENDPASS && (listing)) {
+        if(listing) {
             listStartLine(tmp, ci->currentlinenumber);
             listEndLine();
         }
-
-        // skip leading space
-        while(*tmp && (ISSPACE(*tmp))) tmp++;
+        while(*tmp && ISSPACE(*tmp)) tmp++;
         if(strncasecmp(tmp, "macro", 5) == 0) {
-            error(message[ERROR_MACROINMACRO],0);
+            error(message[ERROR_MACROINMACRO], 0);
+            free(body);
             return NULL;
         }
-        uint8_t skipdot = (*tmp == '.')?1:0;
-        if(strncasecmp(tmp+skipdot, "endmacro", 8) == 0) { 
-            if(ISSPACE(tmp[8+skipdot]) || (tmp[8+skipdot] == 0) || (tmp[8+skipdot] == ';')) {
-                foundend = true;
-                break;
+        skipdot = (*tmp == '.') ? 1 : 0;
+        if(strncasecmp(tmp+skipdot, "endmacro", 8) == 0 &&
+           (ISSPACE(tmp[8+skipdot]) || tmp[8+skipdot] == 0 || tmp[8+skipdot] == ';')) {
+            if(!body) body = allocateMemory(1, &macromemsize);
+            else {
+                // Keep only the finished body, not the growth buffer's spare capacity.
+                char *trimmed = realloc(body, used + 1);
+                if(trimmed) { body = trimmed; capacity = used + 1; }
+                macromemsize += capacity;
             }
+            if(body) body[used] = 0;
+            return body;
         }
-        macrolength += linelength + 1;
-        linestoread++;
-    }
-    if(!foundend) {
-        error(message[ERROR_MACROUNFINISHED],0);
-        return NULL;
-    }
-
-    if(pass == STARTPASS) {
-        // allocate memory for macro body
-        buffer = allocateMemory(macrolength, &macromemsize);
-        if(!buffer) return false;
-        bufptr = buffer;
-
-        // rewind file input
-        seekContentInput(ci, filestartpos);
-        // Read macro lines to buffer
-        for(uint16_t n = 0; n < linestoread; n++) {
-            getnextContentLine(macroline, ci);
-            tmp = macroline;
-            while(*tmp) *bufptr++ = *tmp++;
-            *bufptr = 0;
+        if(used + length + 1 > capacity) {
+            size_t next = capacity ? capacity * 2 : LINEMAX + 1;
+            char *grown;
+            if(next < used + length + 1) next = used + length + 1;
+            grown = realloc(body, next);
+            if(!grown) {
+                free(body);
+                error(message[ERROR_MEMORY], 0);
+                return NULL;
+            }
+            body = grown;
+            capacity = next;
         }
-        getnextContentLine(macroline, ci); // read endmacro line      
+        memcpy(body + used, macroline, length);
+        used += length;
     }
-    return buffer;
+    free(body);
+    error(message[ERROR_MACROUNFINISHED], 0);
+    return NULL;
 }
 
 bool parseMacroDefinition(char *str, char **name, uint8_t *argcount, char *arglist) {
@@ -301,7 +291,7 @@ bool parseMacroArguments(macro_t *macro, char *invocation, char (*substitutionli
             }
             strcpy(substitutionlist[argcount-1], token.start);              // copy substitution argument
             macro->substitutions[argcount-1] = substitutionlist[argcount-1];  // set pointer in macro structure for later processing
-            if((pass == ENDPASS) && listing) sprintf(listbuffer + strlen(listbuffer), "%s=%s ", macro->arguments[argcount-1], token.start);
+            if(listing) sprintf(listbuffer + strlen(listbuffer), "%s=%s ", macro->arguments[argcount-1], token.start);
         }
         if(token.terminator == ',') invocation = token.next;
         else {
@@ -315,6 +305,6 @@ bool parseMacroArguments(macro_t *macro, char *invocation, char (*substitutionli
     }
     // List out argument substitution
     if(listing && argcount == 0) sprintf(listbuffer + strlen(listbuffer), "none");
-    if((pass == ENDPASS) && listing) listPrintComment(listbuffer);
+    if(listing) listPrintComment(listbuffer);
     return true;
 }

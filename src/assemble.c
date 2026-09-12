@@ -17,6 +17,7 @@
 #include "str2num.h"
 #include "assemble.h"
 #include "console.h"
+#include "fixup.h"
 // linebuffer for replacement arguments during macro expansion
 char macro_expansionbuffer[MACROLINEMAX + 1];
 
@@ -272,8 +273,12 @@ void parse_operand(char *string, uint8_t len, operand_t *operand) {
                         case '-':
                             operand->reg = R_IX;
                             operand->displacement_provided = true;
-                            if(*(ptr-1) == '-') operand->displacement = -1 * (int16_t) getExpressionValue(ptr, REQUIRED_LASTPASS);
-                            else operand->displacement = (int16_t) getExpressionValue(ptr, REQUIRED_LASTPASS);
+                            operand->displacement = (int16_t)getExpressionValue(ptr, ALLOW_FORWARD);
+                            operand->fixup = lastFixup;
+                            if(*(ptr-1) == '-') {
+                                operand->displacement = -operand->displacement;
+                                negateFixup(operand->fixup);
+                            }
                             return;
                             break;
                         default:
@@ -306,8 +311,12 @@ void parse_operand(char *string, uint8_t len, operand_t *operand) {
                         case '-':
                             operand->reg = R_IY;
                             operand->displacement_provided = true;
-                            if(*(ptr-1) == '-') operand->displacement = -1 * (int16_t) getExpressionValue(ptr, REQUIRED_LASTPASS);
-                            else operand->displacement = (int16_t) getExpressionValue(ptr, REQUIRED_LASTPASS);
+                            operand->displacement = (int16_t)getExpressionValue(ptr, ALLOW_FORWARD);
+                            operand->fixup = lastFixup;
+                            if(*(ptr-1) == '-') {
+                                operand->displacement = -operand->displacement;
+                                negateFixup(operand->fixup);
+                            }
                             return;
                             break;
                         default:
@@ -433,7 +442,8 @@ void parse_operand(char *string, uint8_t len, operand_t *operand) {
             string++;
         }
         strcpy(operand->immediate_name, string);
-        operand->immediate = getExpressionValue(string, REQUIRED_LASTPASS);
+        operand->immediate = getExpressionValue(string, ALLOW_FORWARD);
+        operand->fixup = lastFixup;
         operand->immediate_provided = true;
         operand->addressmode |= IMM;
     }
@@ -555,7 +565,7 @@ void parseLine(char *src) {
                     case ',':
                         if(argcount == 2) {
                             if(unknown3rdoperand && ((strcasecmp(currentline.mnemonic, "res") == 0) || (strcasecmp(currentline.mnemonic, "set") == 0))) {
-                                uint8_t bitnumber = str2num(operand1.immediate_name, strlen(operand1.immediate_name)); // cannot rely on first-pass information which returns 0
+                                uint8_t bitnumber = str2num(operand1.immediate_name, strlen(operand1.immediate_name)); // this undocumented form requires a literal bit number
                                 // Handle 3rd operand in undocumented Z80 instructions RES0-7/SET0-7
                                 if((!operand1.immediate_provided) || (bitnumber > 7)){
                                     error(message[ERROR_INVALIDBITNUMBER],"%s",operand1.immediate_name);
@@ -611,7 +621,7 @@ bool parse_asm_single_immediate(void) {
         error(message[ERROR_MISSINGARGUMENT],0);
         return false;
     }
-    operand1.immediate = getExpressionValue(token.start, REQUIRED_FIRSTPASS);
+    operand1.immediate = getExpressionValue(token.start, REQUIRED_NOW);
     operand1.immediate_provided = true;
     strcpy(operand1.immediate_name, token.start);
     if((token.terminator != 0) && (token.terminator != ';')) {
@@ -650,24 +660,28 @@ void handle_asm_data(uint8_t wordtype) {
                             emit_quotedstring(token.start);
                             break;
                         default:
-                            value = getExpressionValue(token.start, REQUIRED_LASTPASS); // not needed in pass 1
-                            if(pass == ENDPASS) validateRange8bit(&value, token.start);
+                            value = getExpressionValue(token.start, ALLOW_FORWARD); // forward values are patched after assembly
+                            validateRange8bit(&value, token.start);
+                            if(lastFixup) attachFixup(lastFixup, 1, 1, 0);
                             emit_8bit(value);
                             break;
                     }
                     break;
                 case ASM_DW:
-                    value = getExpressionValue(token.start, REQUIRED_LASTPASS);
-                    if(pass == ENDPASS) validateRange16bit(&value, token.start);
+                    value = getExpressionValue(token.start, ALLOW_FORWARD);
+                    validateRange16bit(&value, token.start);
+                    if(lastFixup) attachFixup(lastFixup, 2, 1, 0);
                     emit_16bit(value);
                     break;
                 case ASM_DW24:
-                    value = getExpressionValue(token.start, REQUIRED_LASTPASS);
-                    if(pass == ENDPASS) validateRange24bit(&value, token.start);
+                    value = getExpressionValue(token.start, ALLOW_FORWARD);
+                    validateRange24bit(&value, token.start);
+                    if(lastFixup) attachFixup(lastFixup, 3, 1, 0);
                     emit_24bit(value);
                     break;
                 case ASM_DW32:
-                    value = getExpressionValue(token.start, REQUIRED_LASTPASS);
+                    value = getExpressionValue(token.start, ALLOW_FORWARD);
+                    if(lastFixup) attachFixup(lastFixup, 4, 1, 0);
                     emit_32bit(value);
                     break;
                 default:
@@ -715,7 +729,7 @@ void handle_asm_equ(void) {
         return;
     }
 
-    value = getExpressionValue(token.start, REQUIRED_FIRSTPASS); // might return the value for $, a potentially relocated address
+    value = getExpressionValue(token.start, REQUIRED_NOW); // might return the value for $, a potentially relocated address
     bool tmprelocate = relocate;
     relocate = false;
     DEFINELABEL(value); // define the value, not the relocated address
@@ -755,7 +769,7 @@ void handle_asm_adl(void) {
             error(message[ERROR_MISSINGARGUMENT],0);
         return;
     }
-    operand2.immediate = getExpressionValue(token.start, REQUIRED_FIRSTPASS); // needs to be defined in pass 1
+    operand2.immediate = getExpressionValue(token.start, REQUIRED_NOW); // required for instruction sizes
     operand2.immediate_provided = true;
     strcpy(operand2.immediate_name, token.start);
 
@@ -773,7 +787,7 @@ void handle_asm_org(void) {
     if(inConditionalSection == CONDITIONSTATE_FALSE) return;
 
     if(!parse_asm_single_immediate()) return; // get address from next token
-    // address needs to be given in pass 1
+    // address must be known before emission
     newaddress = operand1.immediate;
     if((adlmode == 0) && (newaddress > 0xffff)) {
         error(message[ERROR_ADDRESSRANGE],"%s", operand1.immediate_name); 
@@ -797,10 +811,8 @@ void handle_asm_org(void) {
         while(address != newaddress) emit_8bit(fillbyte);
     }
     else if(address != newaddress) {
-        if(pass == ENDPASS) {
-            ioFlushDSSpaces();
-            io_outputfill(fillbyte, newaddress - address);
-        }
+        ioFlushDSSpaces();
+        io_outputfill(fillbyte, newaddress - address);
         address = newaddress;
     }
 }
@@ -833,7 +845,7 @@ void handle_asm_include(void) {
         return;
     }
     DEFINELABEL(address);
-    if((listing) && (pass == ENDPASS)) listEndLine();
+    if(listing) listEndLine();
     processContent(token.start+1);
     sourcefilecount++;
 }
@@ -869,55 +881,47 @@ void handle_asm_incbin(void) {
 
     // Prepare content
     if((ci = findContent(token.start+1)) == NULL) {
-        if(pass == STARTPASS) {
-            ci = insertContent(token.start+1);
-            if(ci == NULL) return;
-        }
-        else return;
+        ci = insertContent(token.start+1);
+        if(ci == NULL) return;
     }
 
-    if(pass == STARTPASS) {
-        if(!completefilebuffering) {
-            ci->fh = ioOpenfile(ci->name, "rb");
-            if(ci->fh == 0) return;
-            ci->size = ioGetfilesize(ci->fh);
-            fclose(ci->fh);
-        }
-        address += ci->size;
+    if(!completefilebuffering) {
+        ci->fh = ioOpenfile(ci->name, "rb");
+        if(ci->fh == 0) return;
+        ci->size = ioGetfilesize(ci->fh);
+        fclose(ci->fh);
     }
-    if(pass == ENDPASS) {
-        // .ds and .align defer their fill bytes until the next output byte.
-        // Flush them before incbin's direct-write paths bypass emit_8bit().
-        if(ci->size) ioFlushDSSpaces();
+    // .ds and .align defer their fill bytes until the next output byte.
+    // Flush them before incbin's direct-write paths bypass emit_8bit().
+    if(ci->size) ioFlushDSSpaces();
 
-        if(completefilebuffering) {
-            if(listing) { // Output needs to pass to the listing through emit_8bit, performance-hit
-                for(n = 0; n < ci->size; n++) emit_8bit(ci->buffer[n]);
-            }
-            else {
-                ioWrite(FILE_OUTPUT, ci->buffer, ci->size);
-                address += ci->size;
-            }
+    if(completefilebuffering) {
+        if(listing) { // Output needs to pass to the listing through emit_8bit, performance-hit
+            for(n = 0; n < ci->size; n++) emit_8bit(ci->buffer[n]);
         }
         else {
-            char buffer[INPUT_BUFFERSIZE];
-
-            ci->fh = ioOpenfile(ci->name, "rb");
-            if(ci->fh == 0) return;
-            while(true) {
-                ci->bytesinbuffer = fread(buffer, 1, INPUT_BUFFERSIZE, ci->fh);
-                if(ci->bytesinbuffer == 0) break;
-                if(listing) { // Output needs to pass to the listing through emit_8bit, performance-hit
-                    for(n = 0; n < ci->bytesinbuffer; n++) emit_8bit(buffer[n]);
-                }
-                else {
-                    ioWrite(FILE_OUTPUT, buffer, ci->bytesinbuffer);
-                    address += ci->bytesinbuffer;
-                }
-            }
-            fclose(ci->fh);
-            ci->fh = NULL;
+            ioWrite(FILE_OUTPUT, ci->buffer, ci->size);
+            address += ci->size;
         }
+    }
+    else {
+        char buffer[INPUT_BUFFERSIZE];
+
+        ci->fh = ioOpenfile(ci->name, "rb");
+        if(ci->fh == 0) return;
+        while(true) {
+            ci->bytesinbuffer = fread(buffer, 1, INPUT_BUFFERSIZE, ci->fh);
+            if(ci->bytesinbuffer == 0) break;
+            if(listing) { // Output needs to pass to the listing through emit_8bit, performance-hit
+                for(n = 0; n < ci->bytesinbuffer; n++) emit_8bit(buffer[n]);
+            }
+            else {
+                ioWrite(FILE_OUTPUT, buffer, ci->bytesinbuffer);
+                address += ci->bytesinbuffer;
+            }
+        }
+        fclose(ci->fh);
+        ci->fh = NULL;
     }
     binfilecount++;
     if((token.terminator != 0) && (token.terminator != ';')) error(message[ERROR_TOOMANYARGUMENTS],0);
@@ -947,7 +951,7 @@ void handle_asm_blk(uint8_t width) {
         token.start = macro_expansionbuffer;
     }
 
-    num = getExpressionValue(token.start, REQUIRED_FIRSTPASS); // <= needs a number of items during pass 1, otherwise addresses will be off later on
+    num = getExpressionValue(token.start, REQUIRED_NOW); // count determines subsequent addresses
 
     if(token.terminator == ',') {
         if(getDefineValueToken(&token, token.next) == 0) {
@@ -959,33 +963,34 @@ void handle_asm_blk(uint8_t width) {
             macroExpandArg(macro_expansionbuffer, token.start, currentExpandedMacro);
             token.start = macro_expansionbuffer;
         }
-        val = getExpressionValue(token.start, REQUIRED_LASTPASS); // value not required in pass 1
+        val = getExpressionValue(token.start, ALLOW_FORWARD); // initializer may reference a forward label
     }
     else { // no value given
         if((token.terminator != 0)  && (token.terminator != ';'))
             error(message[ERROR_LISTFORMAT],0);
         val = fillbyte;
     }
+    if(lastFixup) attachFixup(lastFixup, width, num, fillbyte);
     while(num) {
         switch(width) {
             case 0:
                 address += num;
                 remaining_dsspaces += num;
                 num = 0;
-                if(val != fillbyte) warning(message[WARNING_UNSUPPORTED_INITIALIZER],"%s",token.start);
+                if(!lastFixup && val != fillbyte) warning(message[WARNING_UNSUPPORTED_INITIALIZER],"%s",token.start);
                 break;
             case 1:
-                if(pass == ENDPASS) validateRange8bit(&val, token.start);
+                validateRange8bit(&val, token.start);
                 emit_8bit(val);
                 num -= 1;
                 break;
             case 2:
-                if(pass == ENDPASS) validateRange16bit(&val, token.start);
+                validateRange16bit(&val, token.start);
                 emit_16bit(val);
                 num -= 1;
                 break;
             case 3:
-                if(pass == ENDPASS) validateRange24bit(&val, token.start);
+                validateRange24bit(&val, token.start);
                 emit_24bit(val);
                 num -= 1;
                 break;
@@ -1037,15 +1042,13 @@ void handle_asm_definemacro(void) {
 
     DEFINELABEL(address);
 
-    macrobuffer = readMacroBody(currentcontentitem); // dynamically allocated during STARTPASS
+    macrobuffer = readMacroBody(currentcontentitem); // collected without rewinding input
 
-    if(pass == STARTPASS) {
-        if(!macrobuffer) return;
-        if(!parseMacroDefinition(currentline.next, &macroname, &argcount, (char *)arglist)) return;
-        if(!storeMacro(macroname, macrobuffer, argcount, (char *)arglist, originlinenumber)) {
-            error(message[ERROR_MACROMEMORYALLOCATION],0);
-            return;
-        }
+    if(!macrobuffer) return;
+    if(!parseMacroDefinition(currentline.next, &macroname, &argcount, (char *)arglist)) return;
+    if(!storeMacro(macroname, macrobuffer, argcount, (char *)arglist, originlinenumber)) {
+        error(message[ERROR_MACROMEMORYALLOCATION],0);
+        return;
     }
 }
 
@@ -1097,7 +1100,7 @@ void handle_asm_if(void) {
         return;
     }
 
-    value = getExpressionValue(token.start, REQUIRED_FIRSTPASS);
+    value = getExpressionValue(token.start, REQUIRED_NOW);
     inConditionalSection = value ? CONDITIONSTATE_TRUE : CONDITIONSTATE_FALSE;
 }
 
@@ -1301,11 +1304,11 @@ void processMacro(void) {
     uint24_t localmacroExpandID;
     bool processednestedmacro = false;
 
-    if((listing) && (pass == ENDPASS)) listEndLine();
+    if(listing) listEndLine();
 
     // Set counters and local expansion scope
     macrolevel++;
-    if(pass == STARTPASS) macroexpansions++;
+    macroexpansions++;
     localmacroExpandID = macroExpandID++;
     localexpandedmacro->currentExpandID = localmacroExpandID;
 
@@ -1328,7 +1331,7 @@ void processMacro(void) {
     macrolinenumber = 1;
     lastmacrolineptr = macrolineptr;
     while(getnextMacroLine(&macrolineptr, macroline)) {
-        if(pass == ENDPASS && (listing)) listStartLine(macroline, macrolinenumber);
+        if(listing) listStartLine(macroline, macrolinenumber);
         parseLine(macroline);
 
         if(!currentline.current_macro) processInstructions();
@@ -1362,7 +1365,7 @@ void processMacro(void) {
             if(errorcount) return;
         }
 
-        if((listing) && (pass == ENDPASS)) listEndLine();
+        if(listing) listEndLine();
         macrolinenumber++;
         lastmacrolineptr = macrolineptr;
     }
@@ -1396,14 +1399,8 @@ void processContent(const char *filename) {
     if(!increasecontentlevel()) return;
     
     if((ci = findContent(filename)) == NULL) {
-        if(pass == STARTPASS) {
-            ci = insertContent(filename);
-            if(ci == NULL) {
-                decreasecontentlevel();
-                return;
-            }
-        }
-        else {
+        ci = insertContent(filename);
+        if(ci == NULL) {
             decreasecontentlevel();
             return;
         }
@@ -1412,7 +1409,7 @@ void processContent(const char *filename) {
     // Process
     while(getnextContentLine(line, ci)) {
         ci->currentlinenumber++;
-        if((listing) && (pass == ENDPASS)) listStartLine(line, ci->currentlinenumber);
+        if(listing) listStartLine(line, ci->currentlinenumber);
 
         parseLine(line);
 
@@ -1435,7 +1432,7 @@ void processContent(const char *filename) {
                 return;
             }
         }
-        if((listing) && (pass == ENDPASS)) listEndLine();
+        if(listing) listEndLine();
     }
     if(inConditionalSection != CONDITIONSTATE_NORMAL) {
         error(message[ERROR_MISSINGENDIF],0);
@@ -1443,12 +1440,11 @@ void processContent(const char *filename) {
     }
     closeContentInput(ci, callerci);
     decreasecontentlevel();
-    strcpy(ci->labelscope, ""); // empty scope for next pass
+    strcpy(ci->labelscope, ""); // reset scope for a subsequent inclusion
 }
 
-// Initialize pass 1 / pass2 states for the assembler
-void passInitialize(uint8_t passnumber) {
-    pass = passnumber;
+// Initialize the single source traversal
+void assemblyInitialize(void) {
     address = start_address;
     currentExpandedMacro = NULL;
     inConditionalSection = CONDITIONSTATE_NORMAL;
@@ -1465,19 +1461,14 @@ void passInitialize(uint8_t passnumber) {
     currentcontentitem = NULL;
 
     initAnonymousLabelTable();
-        if(pass == ENDPASS) {
-        fseek(filehandle[FILE_ANONYMOUS_LABELS], 0, 0);
-        readAnonymousLabel();
-        listInit();
-    }
+    if(listing) listInit();
 }
 
 void assemble(const char *filename) {
 
-    for(uint8_t p = STARTPASS; p <= ENDPASS; p++) {
-        printf("Pass %d...\n", p);
-        passInitialize(p);
-        processContent(filename);
-        if(errorcount) return;
-    }
+    assemblyInitialize();
+    processContent(filename);
+    if(!errorcount) resolveFixups();
+    if(!errorcount && listing) listFinish();
+    freeFixups();
 }

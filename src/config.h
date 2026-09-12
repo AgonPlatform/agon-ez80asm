@@ -14,16 +14,19 @@
 #define ADLMODE_START              true
 #define START_ADDRESS           0x40000 // Agon default load address
 #define FILLBYTE                   0xFF // Same as ZDS
-#define STARTPASS                     1
-#define ENDPASS                       2
 #define INSTRUCTION_HASHTABLESIZE   256 // Number of entries in the hashtable
 #define GLOBAL_LABEL_TABLE_SIZE     256
 #define MAXPROCESSDEPTH               8 // Maximum simultaneous processing 'depth' of files / include files
 #define MACRO_MAXLEVEL                8 // Maximum depth level of recursive macro calling
 #define LINEMAX                     256 // Maximum characters per line in input file
 #define FILENAMEMAXLENGTH            64
-#define OUTPUTFILES                   3 // Output files (binary / listing / anonymous labels)
-#define OUTPUT_BUFFERSIZE         32768 // For each specified output file (io.c)
+#define OUTPUTFILES                   2 // Output files (binary / optional listing spool)
+#ifndef OUTPUT_BUFFERSIZE
+#define OUTPUT_BUFFERSIZE         65536UL // Fixed binary output window, independent of -m
+#endif
+#if OUTPUT_BUFFERSIZE < 1
+#error OUTPUT_BUFFERSIZE must be positive
+#endif
 #define INPUT_BUFFERSIZE           4096 // For minimally buffered input files
 #define LISTING_OBJECTS_PER_LINE      4 // Listing hex 'objects' between PC / Line number
 #define TOKEN_MAX               LINEMAX // Token maximum length

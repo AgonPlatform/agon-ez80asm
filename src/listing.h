@@ -4,6 +4,7 @@
 #include "defines.h"
 
 void listInit(void);
+void listFinish(void);
 void listStartLine(const char *line, unsigned int linenumber);
 void listEndLine(void);
 void listPrintDSLines(int number, int value);

@@ -12,6 +12,7 @@
 #include "moscalls.h"
 #include "io.h"
 #include "instruction.h"
+#include "fixup.h"
 
 // File basename variable
 char filebasename[FILENAMEMAXLENGTH + 1];
@@ -21,12 +22,53 @@ char     filename[OUTPUTFILES][FILENAMEMAXLENGTH + 1];
 FILE*    filehandle[OUTPUTFILES];
 contentitem_t *filecontent[256]; // hash table with all file content items
 
-// Local variables
-char *   _bufferstart[OUTPUTFILES];          // statically set start of buffer to each file
-char *   _filebuffer[OUTPUTFILES];            // actual moving pointers in buffer
-uint24_t _filebuffersize[OUTPUTFILES];        // current fill size of each buffer
-bool     _fileEOF[OUTPUTFILES];
-char     _outputbuffer[OUTPUT_BUFFERSIZE];
+// One fixed window is shared by sequential emission and random-access fixups.
+static unsigned char outputBuffer[OUTPUT_BUFFERSIZE];
+static uint24_t windowStart, windowUsed, outputSize;
+static bool windowDirty;
+
+uint24_t ioOutputPosition(void) { return outputSize; }
+
+static bool flushWindow(void) {
+    if(!windowDirty) return true;
+    if(fseek(filehandle[FILE_OUTPUT], windowStart, SEEK_SET) ||
+       fwrite(outputBuffer, 1, windowUsed, filehandle[FILE_OUTPUT]) != windowUsed) {
+        error(message[ERROR_FILEIO], "%s", filename[FILE_OUTPUT]);
+        return false;
+    }
+    windowDirty = false;
+    return true;
+}
+
+static bool selectWindow(uint24_t position) {
+    uint24_t start, length;
+    if(position >= windowStart && position - windowStart < windowUsed) return true;
+    if(!flushWindow()) return false;
+    start = (position / OUTPUT_BUFFERSIZE) * OUTPUT_BUFFERSIZE;
+    length = outputSize - start;
+    if(length > OUTPUT_BUFFERSIZE) length = OUTPUT_BUFFERSIZE;
+    if(fseek(filehandle[FILE_OUTPUT], start, SEEK_SET) ||
+       fread(outputBuffer, 1, length, filehandle[FILE_OUTPUT]) != length) {
+        error(message[ERROR_FILEIO], "%s", filename[FILE_OUTPUT]);
+        return false;
+    }
+    windowStart = start;
+    windowUsed = length;
+    return true;
+}
+
+unsigned char ioReadOutputByte(uint24_t position) {
+    if(position >= outputSize) { error(message[ERROR_INTERNAL], 0); return 0; }
+    if(!selectWindow(position)) return 0;
+    return outputBuffer[position - windowStart];
+}
+
+void ioPatchByte(uint24_t position, unsigned char value) {
+    if(position >= outputSize) { error(message[ERROR_INTERNAL], 0); return; }
+    if(!selectWindow(position)) return;
+    outputBuffer[position - windowStart] = value;
+    windowDirty = true;
+}
 
 #ifdef AGONDEV
     // platform-specific for Agon AGONDEV
@@ -58,19 +100,6 @@ uint24_t ioGetfilesize(FILE *fh) {
     return filesize;
 }
 
-void _initFileBuffers(void) {
-    int n;
-
-    for(n = 0; n < OUTPUTFILES; n++) _bufferstart[n] = 0;
-    _bufferstart[FILE_OUTPUT] = _outputbuffer;
-
-    for(n = 0; n < OUTPUTFILES; n++) {
-        _filebuffer[n] = _bufferstart[n];
-        _filebuffersize[n] = 0;
-        _fileEOF[n] = false;
-    }
-}
-
 // opens a file a places the result at the file pointer
 bool _openFile(uint8_t filenumber, const char* mode) {
     FILE* file = fopen(filename[filenumber], mode);
@@ -97,23 +126,21 @@ void _prepare_filenames(const char *output_filename) {
         strcpy(filename[FILE_OUTPUT], output_filename);
     }
 
-    strcpy(filename[FILE_ANONYMOUS_LABELS], filebasename);
     strcpy(filename[FILE_LISTING], filebasename);
-    strcat(filename[FILE_ANONYMOUS_LABELS], ".lbl");
-    strcat(filename[FILE_LISTING], ".lst");
+    strcat(filename[FILE_LISTING], list_enabled ? ".lst" : ".lst.tmp");
 }
 
 void _deleteFiles(void) {
     if(CLEANUPFILES) {
-        remove(filename[FILE_ANONYMOUS_LABELS]);
+        if(!list_enabled && consolelist_enabled) remove(filename[FILE_LISTING]);
     }
     if(errorcount && CLEANUPFILES) remove(filename[FILE_OUTPUT]);
 }
 
 void _closeAllFiles(void) {
-    if(filehandle[FILE_OUTPUT]) fclose(filehandle[FILE_OUTPUT]);
-    if(filehandle[FILE_ANONYMOUS_LABELS]) fclose(filehandle[FILE_ANONYMOUS_LABELS]);
-    if(list_enabled && filehandle[FILE_LISTING]) fclose(filehandle[FILE_LISTING]);
+    if(filehandle[FILE_OUTPUT] && fclose(filehandle[FILE_OUTPUT])) error(message[ERROR_FILEIO], "%s", filename[FILE_OUTPUT]);
+
+    if(filehandle[FILE_LISTING] && fclose(filehandle[FILE_LISTING])) error(message[ERROR_FILEIO], "%s", filename[FILE_LISTING]);
 }
 
 bool _openfiles(void) {
@@ -122,13 +149,8 @@ bool _openfiles(void) {
         _closeAllFiles();
         return false;
     }
-    if(!_openFile(FILE_ANONYMOUS_LABELS, "wb+")) {
-        error("Error creating anonymous labels file", 0);
-        _closeAllFiles();
-        return false;
-    }
-    if(list_enabled) {
-        if(!_openFile(FILE_LISTING, "w")) {
+    if(list_enabled || consolelist_enabled) {
+        if(!_openFile(FILE_LISTING, "wb+")) {
             error("Error creating listing file", 0);
             _closeAllFiles();
             return false;
@@ -137,92 +159,48 @@ bool _openfiles(void) {
     return true;
 }
 
-// Will be called for output files only
-// These files will have a buffer set up previously
-void _io_flush(uint8_t fh) {
-    fwrite(_bufferstart[fh], 1, _filebuffersize[fh], filehandle[fh]);
-    _filebuffer[fh] = _bufferstart[fh];
-    _filebuffersize[fh] = 0;
-}
-
-// Flush all output files
-void _io_flushOutput(void) {
-    for(int fh = 0; fh < OUTPUTFILES; fh++) {
-        if(_bufferstart[fh]) _io_flush(fh);
+// Append whole chunks; a full window stays resident until another byte arrives.
+void ioWrite(uint8_t fh, const char *s, uint24_t size) {
+    if(fh != FILE_OUTPUT) {
+        if(fwrite(s, 1, size, filehandle[fh]) != size) error(message[ERROR_FILEIO], "%s", filename[fh]);
+        return;
+    }
+    while(size && !errorcount) {
+        uint24_t run;
+        if(windowUsed == OUTPUT_BUFFERSIZE) {
+            if(!flushWindow()) return;
+            windowStart = outputSize;
+            windowUsed = 0;
+        }
+        run = OUTPUT_BUFFERSIZE - windowUsed;
+        if(run > size) run = size;
+        memcpy(outputBuffer + windowUsed, s, run);
+        windowUsed += run;
+        outputSize += run;
+        windowDirty = true;
+        s += run;
+        size -= run;
     }
 }
 
-// Only called on output-mode files
-void ioPutc(uint8_t fh, unsigned char c) {
-    if(_bufferstart[fh]) {
-        // Buffered IO
-        *(_filebuffer[fh]++) = c;
-        _filebuffersize[fh]++;
-        if(_filebuffersize[fh] == OUTPUT_BUFFERSIZE) _io_flush(fh);
-    }
-    else fputc(c, filehandle[fh]); // regular non-buffered IO
-}
+void ioPutc(uint8_t fh, unsigned char c) { ioWrite(fh, (const char *)&c, 1); }
 
-void io_outputc(unsigned char c) {
-    *(_filebuffer[FILE_OUTPUT]++) = c;
-    _filebuffersize[FILE_OUTPUT]++;
-    if(_filebuffersize[FILE_OUTPUT] == OUTPUT_BUFFERSIZE) _io_flush(FILE_OUTPUT);
-}
-
-// The same byte `count` times, in whole blocks. Used for the gaps that ORG and
-// DS leave behind, which run to thousands of bytes.
 void io_outputfill(unsigned char c, uint24_t count) {
-    char *dst = _filebuffer[FILE_OUTPUT];
-    uint24_t used = _filebuffersize[FILE_OUTPUT];
-
-    while(count) {
-        uint24_t run = OUTPUT_BUFFERSIZE - used;
-        if(count < run) run = count;
-        memset(dst, c, run);
-        dst += run;
-        used += run;
+    while(count && !errorcount) {
+        uint24_t run;
+        if(windowUsed == OUTPUT_BUFFERSIZE) {
+            if(!flushWindow()) return;
+            windowStart = outputSize;
+            windowUsed = 0;
+        }
+        run = OUTPUT_BUFFERSIZE - windowUsed;
+        if(run > count) run = count;
+        memset(outputBuffer + windowUsed, c, run);
+        windowUsed += run;
+        outputSize += run;
+        windowDirty = true;
         count -= run;
-        if(used == OUTPUT_BUFFERSIZE) {
-            _filebuffer[FILE_OUTPUT] = dst;
-            _filebuffersize[FILE_OUTPUT] = used;
-            _io_flush(FILE_OUTPUT);
-            dst = _filebuffer[FILE_OUTPUT];
-            used = _filebuffersize[FILE_OUTPUT];
-        }
     }
-    _filebuffer[FILE_OUTPUT] = dst;
-    _filebuffersize[FILE_OUTPUT] = used;
-}
-
-// Append `size` bytes to a buffered output file, a bufferful at a time.
-// Copying with memcpy() rather than a character loop matters most for INCBIN,
-// which hands over a whole file in one call.
-void  ioWrite(uint8_t fh, const char *s, uint24_t size) {
-    if(_bufferstart[fh]) {
-        // Buffered IO
-        char *dst = _filebuffer[fh];
-        uint24_t used = _filebuffersize[fh];
-
-        while(size) {
-            uint24_t run = OUTPUT_BUFFERSIZE - used;
-            if(size < run) run = size;
-            memcpy(dst, s, run);
-            dst += run;
-            s += run;
-            used += run;
-            size -= run;
-            if(used == OUTPUT_BUFFERSIZE) {
-                _filebuffer[fh] = dst;
-                _filebuffersize[fh] = used;
-                _io_flush(fh);
-                dst = _filebuffer[fh];
-                used = _filebuffersize[fh];
-            }
-        }
-        _filebuffer[fh] = dst;
-        _filebuffersize[fh] = used;
-    }
-    else fwrite(s, 1, size, filehandle[fh]);
 }
 
 int ioPuts(uint8_t fh, const char *s) {
@@ -238,18 +216,18 @@ int ioPuts(uint8_t fh, const char *s) {
 bool ioInit(const char *input_filename, const char *output_filename) {
     create_filebasename(input_filename);
     _prepare_filenames(output_filename);
-    _initFileBuffers();
+    windowStart = windowUsed = outputSize = 0;
+    windowDirty = false;
     return _openfiles();
 }
 
 void ioClose(void) {
-    _io_flushOutput();
+    if(filehandle[FILE_OUTPUT] && !errorcount) flushWindow();
     _closeAllFiles();
     _deleteFiles();
 }
 
 void ioFlushDSSpaces(void) {
-    if(pass != ENDPASS) return;
 
     if(listing && remaining_dsspaces) listPrintDSLines(remaining_dsspaces, fillbyte);
     if(remaining_dsspaces) {
@@ -259,16 +237,17 @@ void ioFlushDSSpaces(void) {
 }
 
 void emit_8bit(uint8_t value) {
-    if(pass == ENDPASS) {
-        // ioFlushDSSpaces() does nothing at all unless a DS is pending, and
-        // io_outputc() is four lines; called they are three calls for every
-        // byte the assembler emits, which is the most-run path there is.
-        if(remaining_dsspaces) ioFlushDSSpaces();
-        if(listing) listEmit8bit(value);
-        *(_filebuffer[FILE_OUTPUT]++) = value;
-        _filebuffersize[FILE_OUTPUT]++;
-        if(_filebuffersize[FILE_OUTPUT] == OUTPUT_BUFFERSIZE) _io_flush(FILE_OUTPUT);
+    // Keep the common single-byte emission path inline.
+    if(remaining_dsspaces) ioFlushDSSpaces();
+    if(listing) listEmit8bit(value);
+    if(windowUsed == OUTPUT_BUFFERSIZE) {
+        if(!flushWindow()) return;
+        windowStart = outputSize;
+        windowUsed = 0;
     }
+    outputBuffer[windowUsed++] = value;
+    outputSize++;
+    windowDirty = true;
     address++;
 }
 
@@ -350,6 +329,7 @@ void emit_immediate(const operand_t *op, uint8_t suffix) {
     uint8_t num;
 
     num = get_immediate_size(suffix);
+    if(op->fixup) attachFixup(op->fixup, num, 1, 0);
     emit_8bit(op->immediate & 0xFF);
     emit_8bit((op->immediate >> 8) & 0xFF);
     if(num == 2) validateRange16bit(&op->immediate, op->immediate_name);

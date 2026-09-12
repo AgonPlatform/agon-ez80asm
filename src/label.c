@@ -19,10 +19,24 @@
 // Total allocated memory for labels
 uint24_t labelmemsize;
 
-// memory for anonymous labels
-anonymouslabel_t an_prev;
-anonymouslabel_t an_next;
-label_t an_return;
+// Anonymous labels use stable nodes, so forward references need no disk file.
+typedef struct anonymousnode {
+    struct anonymousnode *next;
+    anonymouslabel_t label;
+} anonymousnode_t;
+static anonymousnode_t anonymousRoot, *anonymousCurrent;
+static label_t an_return;
+
+void *anonymousPosition(void) { return anonymousCurrent; }
+void restoreAnonymousPosition(void *position) { anonymousCurrent = position; }
+
+static anonymousnode_t *nextAnonymous(void) {
+    if(!anonymousCurrent->next) {
+        anonymousCurrent->next = allocateMemory(sizeof(anonymousnode_t), &labelmemsize);
+        if(anonymousCurrent->next) memset(anonymousCurrent->next, 0, sizeof(anonymousnode_t));
+    }
+    return anonymousCurrent->next;
+}
 
 // tables
 label_t* globalLabelTable[GLOBAL_LABEL_TABLE_SIZE]; // hash table
@@ -71,8 +85,8 @@ void initGlobalLabelTable(void) {
 }
 
 void initAnonymousLabelTable(void) {
-    an_prev.defined = false;
-    an_next.defined = false;
+    memset(&anonymousRoot, 0, sizeof(anonymousRoot));
+    anonymousCurrent = &anonymousRoot;
     an_return.name = NULL;
 }
 
@@ -96,35 +110,9 @@ label_t * findLocalLabel(const char *key) {
 }
 
 void writeAnonymousLabel(uint24_t labelAddress) {
-    uint8_t scope;
-
-    scope = contentlevel;
-    fwrite((char*)&labelAddress, sizeof(labelAddress), 1, filehandle[FILE_ANONYMOUS_LABELS]);
-    fwrite((char*)&scope, sizeof(scope), 1, filehandle[FILE_ANONYMOUS_LABELS]);
-    fflush(filehandle[FILE_ANONYMOUS_LABELS]);
-}
-
-void readAnonymousLabel(void) {
-    uint24_t labelAddress;
-    uint8_t scope;
-
-    if(fread((char*)&labelAddress, sizeof(labelAddress), 1, filehandle[FILE_ANONYMOUS_LABELS])) {
-        fread((char*)&scope, sizeof(scope), 1, filehandle[FILE_ANONYMOUS_LABELS]);
-        if(an_next.defined) {
-            an_prev.address = an_next.address;
-            an_prev.scope = an_next.scope;
-            an_prev.defined = true;
-        }
-        an_next.address = labelAddress;
-        an_next.scope = scope;            
-        an_next.defined = true;
-    }
-    else { // last label already read
-        an_prev.address = an_next.address;
-        an_prev.scope = an_next.scope;
-        an_prev.defined = true;
-        an_next.defined = false;
-    }
+    anonymousCurrent->label.address = labelAddress;
+    anonymousCurrent->label.scope = contentlevel;
+    anonymousCurrent->label.defined = true;
 }
 
 bool insertLabel(const char *labelname, uint8_t len, uint24_t labelAddress, bool local){
@@ -210,18 +198,19 @@ label_t *findGlobalLabel(const char *name){
 label_t *findLabel(const char *name) {
     if(name[0] == '@') {
         if(((TOLOWER(name[1]) == 'f') || (TOLOWER(name[1]) == 'n')) && name[2] == 0) {
-            if(an_next.defined && an_next.scope == contentlevel) {
-                an_return.address = an_next.address;
+            anonymousnode_t *node = nextAnonymous();
+            if(node && node->label.defined && node->label.scope == contentlevel) {
+                an_return.address = node->label.address;
                 return &an_return;
             }
-            else return NULL;
+            return NULL;
         }
         if(((TOLOWER(name[1]) == 'b') || (TOLOWER(name[1]) == 'p')) && name[2] == 0) {
-            if(an_prev.defined && an_prev.scope == contentlevel) {
-                an_return.address = an_prev.address;
+            if(anonymousCurrent->label.defined && anonymousCurrent->label.scope == contentlevel) {
+                an_return.address = anonymousCurrent->label.address;
                 return &an_return;
             }
-            else return NULL;
+            return NULL;
         }
         return findLocalLabel(name);
     }
@@ -232,7 +221,10 @@ void advanceAnonymousLabel(void) {
     if(currentline.label) {
         if(currentline.label[0] == '@') {
             if(currentline.label[1] == '@') {
-                readAnonymousLabel();
+                if(inConditionalSection != CONDITIONSTATE_FALSE) {
+                    anonymousnode_t *node = nextAnonymous();
+                    if(node) anonymousCurrent = node;
+                }
             }
         }
     }
@@ -241,56 +233,51 @@ void advanceAnonymousLabel(void) {
 void definelabel(uint24_t num){
     uint8_t len;
 
-    if(pass == STARTPASS) {
-        if(currentline.label == NULL) return;
+    if(currentline.label == NULL) return;
 
-        if(strlen(currentline.label) > MAXNAMELENGTH) {
-            error(message[ERROR_LABELTOOLONG], "%s", currentline.label);
-            return;
-        }
+    if(strlen(currentline.label) > MAXNAMELENGTH) {
+        error(message[ERROR_LABELTOOLONG], "%s", currentline.label);
+        return;
+    }
 
-        if(relocate) num = relocateBaseAddress + (num - relocateOutputBaseAddress);
-        if(currentline.label[0] == '@') {
-            if(currentline.label[1] == '@') {
-                if(currentExpandedMacro) {
-                    error(message[ERROR_MACRO_NOANONYMOUSLABELS],0);
-                    return;
-                }
-                writeAnonymousLabel(num);
+    if(relocate) num = relocateBaseAddress + (num - relocateOutputBaseAddress);
+    if(currentline.label[0] == '@') {
+        if(currentline.label[1] == '@') {
+            if(currentExpandedMacro) {
+                error(message[ERROR_MACRO_NOANONYMOUSLABELS],0);
                 return;
             }
-            if(insertLocalLabel(currentline.label, num) == false) {
-                error(message[ERROR_CREATINGLABEL],0);
-                return;
-            }
+            writeAnonymousLabel(num);
             return;
         }
-        if(currentline.label[0] == '$') {
-            error(message[ERROR_INVALIDLABEL],"%s",currentline.label);
-            return;
-        }
-        if(currentExpandedMacro) {
-            error(message[ERROR_MACRO_NOGLOBALLABELS],0);
-            return;
-        }
-        len = strlen(currentline.label);
-        str2num(currentline.label, len); 
-        if(!err_str2num) { // labels can't have a valid number format
-            error(message[ERROR_INVALIDLABEL],"%s",currentline.label);
-            return;
-        }
-        if(insertLabel(currentline.label, len, num, false) == false){
+        if(insertLocalLabel(currentline.label, num) == false) {
             error(message[ERROR_CREATINGLABEL],0);
             return;
         }
-
-        if(currentline.label) {
-            strcpy(currentcontentitem->labelscope, currentline.label);
-        }
-
         return;
     }
-    if(currentline.label && currentline.label[0] != '@') {
+    if(currentline.label[0] == '$') {
+        error(message[ERROR_INVALIDLABEL],"%s",currentline.label);
+        return;
+    }
+    if(currentExpandedMacro) {
+        error(message[ERROR_MACRO_NOGLOBALLABELS],0);
+        return;
+    }
+    len = strlen(currentline.label);
+    str2num(currentline.label, len);
+    if(!err_str2num) { // labels can't have a valid number format
+        error(message[ERROR_INVALIDLABEL],"%s",currentline.label);
+        return;
+    }
+    if(insertLabel(currentline.label, len, num, false) == false){
+        error(message[ERROR_CREATINGLABEL],0);
+        return;
+    }
+
+    if(currentline.label) {
         strcpy(currentcontentitem->labelscope, currentline.label);
     }
+
+    return;
 }

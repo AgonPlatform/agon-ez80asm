@@ -124,6 +124,7 @@
     <ClCompile Include="..\hash.c" />
     <ClCompile Include="..\instruction.c" />
     <ClCompile Include="..\io.c" />
+    <ClCompile Include="..\fixup.c" />
     <ClCompile Include="..\label.c" />
     <ClCompile Include="..\listing.c" />
     <ClCompile Include="..\macro.c" />

@@ -20,7 +20,6 @@ extern uint16_t binfilecount;
 extern uint24_t filecontentsize;
 extern bool completefilebuffering;
 extern unsigned int macrolinenumber;
-extern unsigned int pass;
 extern conditionalstate_t inConditionalSection;
 extern macro_t *currentExpandedMacro;
 extern uint8_t macrolevel;

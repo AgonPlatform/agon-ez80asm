@@ -32,7 +32,7 @@ void     trimRight(char *str);
 void     error(const char *msg, const char *contextformat, ...);
 void     warning(const char *msg, const char *contextformat, ...);
 void     colorPrintf(int color, const char *msg, ...);
-int32_t  getExpressionValue(char *str, requiredResult_t requiredPass);
+int32_t  getExpressionValue(char *str, requiredResult_t requirement);
 uint8_t  getEscapedChar(char c);
 uint8_t  getLiteralValue(const char *string);
 void     errorCPUtype(errormessage_t index);

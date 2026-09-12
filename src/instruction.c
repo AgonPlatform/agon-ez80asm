@@ -15,6 +15,7 @@
 #include "label.h"
 #include "io.h"
 #include "instruction.h"
+#include "fixup.h"
 
 // instruction hash table
 instruction_t *instruction_table[INSTRUCTION_HASHTABLESIZE];
@@ -108,8 +109,8 @@ void transform_instruction(operand_t *op, uint8_t type) {
             op->immediate_provided = false; // no separate output for this transform
             break;
         case TRANSFORM_REL:
-            if(pass == ENDPASS) {
-                // label still potentially unknown in pass 1, so output the existing '0' in pass 1
+            if(!op->fixup) {
+                // unresolved targets are validated and patched later
                 if(relocate) {
                    rel = op->immediate - (relocateBaseAddress + (address - relocateOutputBaseAddress)) - 2;
                 } else {
@@ -188,9 +189,21 @@ uint8_t getADLsuffix(void) {
     return 0;
 }
 
+static void attachOpcodeFixups(const operandlist_t *list) {
+    if(!operand1.fixup) return;
+    switch(list->transformA) {
+        case TRANSFORM_Y:
+        case TRANSFORM_BIT: attachFixup(operand1.fixup, FIX_BIT, 1, output.opcode); break;
+        case TRANSFORM_N: attachFixup(operand1.fixup, FIX_RST, 1, output.opcode); break;
+        case TRANSFORM_SELECT: attachFixup(operand1.fixup, FIX_IM, 1, output.opcode); break;
+    }
+}
+
 void emit_instruction(const operandlist_t *list) {
     bool ddbeforeopcode; // determine position of displacement byte in case of DDCBdd/DDFDdd
     
+    uint8_t fixkindA = 1, fixkindB = 1;
+
     // Transform necessary prefix/opcode in output, according to given list and operands
     output.suffix = getADLsuffix();
     output.prefix1 = 0;
@@ -207,8 +220,8 @@ void emit_instruction(const operandlist_t *list) {
     // issue any warnings here
     if((list->transformA != TRANSFORM_REL) && (list->transformB != TRANSFORM_REL)) { // TRANSFORM_REL will mask to 0xFF
         if(!ignore_truncation_warnings) {
-            if((list->conditionsA & IMM_N) && OUTOFRANGE8(&operand1.immediate)) warning(message[WARNING_TRUNCATED_8BIT],"%s",operand1.immediate_name);
-            if((list->conditionsB & IMM_N) && OUTOFRANGE8(&operand2.immediate)) warning(message[WARNING_TRUNCATED_8BIT],"%s",operand2.immediate_name);
+            if((list->conditionsA & IMM_N) && !operand1.fixup && OUTOFRANGE8(&operand1.immediate)) warning(message[WARNING_TRUNCATED_8BIT],"%s",operand1.immediate_name);
+            if((list->conditionsB & IMM_N) && !operand2.fixup && OUTOFRANGE8(&operand2.immediate)) warning(message[WARNING_TRUNCATED_8BIT],"%s",operand2.immediate_name);
         }
     }
     if((output.suffix) && ((list->flags & output.suffix) == 0)) error(message[ERROR_ILLEGAL_SUFFIXMODE],"%s",currentline.suffix);
@@ -219,6 +232,8 @@ void emit_instruction(const operandlist_t *list) {
     if((list->conditionsA & IMM_NSELECT) && (operand1.immediate > 2)) error(message[ERROR_ILLEGALINTERRUPTMODE],"%s",operand1.immediate_name);
     if((list->transformA == TRANSFORM_N) && (operand1.immediate & 0x47)) error(message[ERROR_ILLEGALRESTARTADDRESS],"%s",operand1.immediate_name);
 
+    if(list->transformA == TRANSFORM_REL) fixkindA = FIX_REL;
+    if(list->transformB == TRANSFORM_REL) fixkindB = FIX_REL;
     // prepare extra DD/FD suffix if needed
     // Both of these begin by deciding they have nothing to do for most
     // encodings -- two thirds have no DD/FD form, three quarters of the
@@ -237,18 +252,36 @@ void emit_instruction(const operandlist_t *list) {
     if(output.prefix2) emit_8bit(output.prefix2);
 
     // opcode in normal position
-    if(!ddbeforeopcode) emit_8bit(output.opcode);
+    if(!ddbeforeopcode) {
+        if(operand1.fixup) attachOpcodeFixups(list);
+        emit_8bit(output.opcode);
+    }
     
     // output displacement
-    if(list->flags & F_DISPA) emit_8bit(operand1.displacement);
-    if(list->flags & F_DISPB) emit_8bit(operand2.displacement);
+    if(list->flags & F_DISPA) {
+        if(operand1.fixup) attachFixup(operand1.fixup, FIX_DISP, 1, 0);
+        emit_8bit(operand1.displacement);
+    }
+    if(list->flags & F_DISPB) {
+        if(operand2.fixup) attachFixup(operand2.fixup, FIX_DISP, 1, 0);
+        emit_8bit(operand2.displacement);
+    }
     
     // output n
-    if((operand1.immediate_provided) && (list->conditionsA & IMM_N)) emit_8bit(operand1.immediate);
-    if((operand2.immediate_provided) && (list->conditionsB & IMM_N)) emit_8bit(operand2.immediate);
+    if((operand1.immediate_provided) && (list->conditionsA & IMM_N)) {
+        if(operand1.fixup) attachFixup(operand1.fixup, fixkindA, 1, 0);
+        emit_8bit(operand1.immediate);
+    }
+    if((operand2.immediate_provided) && (list->conditionsB & IMM_N)) {
+        if(operand2.fixup) attachFixup(operand2.fixup, fixkindB, 1, 0);
+        emit_8bit(operand2.immediate);
+    }
 
     // opcode in DDCBdd/DFCBdd position
-    if(ddbeforeopcode) emit_8bit(output.opcode);
+    if(ddbeforeopcode) {
+        if(operand1.fixup) attachOpcodeFixups(list);
+        emit_8bit(output.opcode);
+    }
 
     //output remaining immediate bytes
     if(list->conditionsA & IMM_MMN) emit_immediate(&operand1, output.suffix);

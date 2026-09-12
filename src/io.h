@@ -8,7 +8,7 @@
 extern char filebasename[FILENAMEMAXLENGTH + 1];
 extern bool list_enabled;
 extern bool consolelist_enabled;
-extern char filename[OUTPUTFILES][FILENAMEMAXLENGTH + 1];    // 0 - binary output, 3 - anonymous labels, 4 - listing
+extern char filename[OUTPUTFILES][FILENAMEMAXLENGTH + 1];    // binary output and optional listing
 extern FILE* filehandle[OUTPUTFILES];
 extern contentitem_t *filecontent[256]; // hash table with all file content items
 
@@ -16,6 +16,9 @@ FILE *ioOpenfile(const char *name, const char *mode);
 uint24_t ioGetfilesize(FILE *fh);
 void ioWrite(uint8_t fh, const char *s, uint24_t size);
 bool ioInit(const char *input_filename, const char *output_filename); // init - called once at start
+uint24_t ioOutputPosition(void);
+unsigned char ioReadOutputByte(uint24_t position);
+void ioPatchByte(uint24_t position, unsigned char value);
 void ioClose(void);                                // close everything at end, do cleanup
 void ioPutc(uint8_t fh, unsigned char c);
 void io_outputfill(unsigned char c, uint24_t count); // buffered write of a run of one byte          // buffered write of a single byte / fallback
