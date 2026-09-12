@@ -110,8 +110,10 @@ label_t * findLocalLabel(const char *key) {
     return findGlobalLabel(compoundname);
 }
 
-/* Anonymous labels have a separate position-dependent representation. */
-label_t *internLabel(const char *name) {
+/* The caller has already checked findLabel(name) and excluded anonymous
+ * references. No symbol-table mutation may occur between that lookup and
+ * this insertion. Local names are qualified in the same scope as findLabel. */
+label_t *createUnresolvedLabel(const char *name) {
     char compound[(MAXNAMELENGTH * 2)+1];
     const char *key = name;
     label_t *node;
@@ -123,8 +125,6 @@ label_t *internLabel(const char *name) {
         else strcompound(compound, scope, name);
         key = compound;
     }
-    node = findGlobalLabel(key);
-    if(node) return node;
     node = allocateMemory(sizeof(*node), &labelmemsize);
     if(!node) return NULL;
     node->name = allocateString(key, &labelmemsize);
@@ -145,60 +145,44 @@ void writeAnonymousLabel(uint24_t labelAddress) {
 }
 
 bool insertLabel(const char *labelname, uint8_t len, uint24_t labelAddress, bool local){
-    uint8_t index;
-    label_t *tmp,*try;
+    uint8_t index = hash256(labelname);
+    label_t *tmp = globalLabelTable[index], *tail = NULL;
+    uint24_t collisions = 0;
 
-    // Forward references keep this record stable until its definition.
-    tmp = findGlobalLabel(labelname);
-    if(tmp) {
-        if(tmp->defined) { error(message[ERROR_LABELDEFINED], "%s", labelname); return false; }
-        tmp->address = labelAddress;
-        tmp->local = local;
-        tmp->defined = true;
-        globalLabelCounter++;
-        return true;
+    /* Retain the insertion slot while checking for an existing definition.
+     * Forward references must keep their original record and address. */
+    while(tmp != NULL) {
+        if(strcmp(tmp->name, labelname) == 0) {
+            if(tmp->defined) { error(message[ERROR_LABELDEFINED], "%s", labelname); return false; }
+            tmp->address = labelAddress;
+            tmp->local = local;
+            tmp->defined = true;
+            globalLabelCounter++;
+            return true;
+        }
+        collisions++;
+        tail = tmp;
+        tmp = tmp->next;
     }
 
-    // allocate space in buffer for label_t struct
-    tmp = (label_t *)allocateMemory(sizeof(label_t), &labelmemsize);
-    if(tmp == NULL) return false;
-
-    // allocate space in buffer for string and store it to buffer
-    tmp->name = (char*)allocateMemory(len+1, &labelmemsize);
-    if(tmp->name == NULL) return false;
-
+    tmp = allocateMemory(sizeof(*tmp), &labelmemsize);
+    if(!tmp) return false;
+    tmp->name = allocateMemory(len + 1, &labelmemsize);
+    if(!tmp->name) {
+        free(tmp);
+        labelmemsize -= sizeof(*tmp);
+        return false;
+    }
     strcpy(tmp->name, labelname);
     tmp->local = local;
     tmp->defined = true;
     tmp->address = labelAddress;
     tmp->next = NULL;
-
-    index = hash256(labelname);
-    try = globalLabelTable[index];
-
-    // First item on index
-    if(try == NULL) {
-        globalLabelTable[index] = tmp;
-        globalLabelCounter++;
-        return true;
-    }
-
-    // Collision on index, place at end of linked list if unique
-    while(true) {
-        if(strcmp(try->name, labelname) == 0) {
-            error(message[ERROR_LABELDEFINED],"%s",labelname);
-            return false;
-        }
-        labelcollisions++;
-        if(try->next) {
-            try = try->next;
-        }
-        else {
-            try->next = tmp;
-            globalLabelCounter++;
-            return true;
-        }
-    }
+    if(tail) tail->next = tmp;
+    else globalLabelTable[index] = tmp;
+    labelcollisions += collisions;
+    globalLabelCounter++;
+    return true;
 }
 
 bool insertLocalLabel(const char *labelname, uint24_t labelAddress) {

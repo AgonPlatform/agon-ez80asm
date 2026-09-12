@@ -530,7 +530,8 @@ int32_t getExpressionValue(char *str, requiredResult_t requirement) {
        !(start[0] == '@' && start[1] && !start[2] &&
          (TOLOWER(start[1]) == 'f' || TOLOWER(start[1]) == 'n' ||
           TOLOWER(start[1]) == 'b' || TOLOWER(start[1]) == 'p'))) {
-        symbol = internLabel(start);
+        /* Reuse an undefined record, or insert the already-confirmed miss. */
+        if(!symbol) symbol = createUnresolvedLabel(start);
         if(symbol) lastFixup = captureSymbolFixup(symbol, start);
         expressionUnknown = true;
         *end = terminator;
