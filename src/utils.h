@@ -18,6 +18,7 @@ uint8_t  getMnemonicToken(streamtoken_t *token, char *src);
 uint8_t  getOperandToken(streamtoken_t *token, char *src);
 uint8_t  getDefineValueToken(streamtoken_t *token, char *src);
 
+// Source-line destinations need LINEBUFFERSIZE bytes (content, LF, zero).
 uint24_t getnextContentLine(char *dst1, contentitem_t *ci);
 uint24_t getlastContentLine(char *dst1, contentitem_t *ci);
 uint24_t getnextMacroLine(char **ptr, char *dst);

@@ -18,7 +18,8 @@
 #define GLOBAL_LABEL_TABLE_SIZE     256
 #define MAXPROCESSDEPTH               8 // Maximum simultaneous processing 'depth' of files / include files
 #define MACRO_MAXLEVEL                8 // Maximum depth level of recursive macro calling
-#define LINEMAX                     256 // Maximum characters per line in input file
+#define LINEMAX                     256 // Maximum bytes before LF in an input line
+#define LINEBUFFERSIZE             (LINEMAX + 2) // Optional LF and terminating zero
 #define FILENAMEMAXLENGTH            64
 #define OUTPUTFILES                   2 // Output files (binary / optional listing spool)
 #ifndef OUTPUT_BUFFERSIZE

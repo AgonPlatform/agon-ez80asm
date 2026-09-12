@@ -175,7 +175,7 @@ void macroExpandArg(char *dst, const char *src, const macro_t *m) {
 char * readMacroBody(contentitem_t *ci) {
     char *body = NULL;
     size_t used = 0, capacity = 0;
-    char macroline[LINEMAX+1];
+    char macroline[LINEBUFFERSIZE];
     uint24_t length;
     if(listing) listEndLine();
     while((length = getnextContentLine(macroline, ci))) {

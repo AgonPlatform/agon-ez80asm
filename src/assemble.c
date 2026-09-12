@@ -1313,7 +1313,7 @@ void processInstructions(void){
 
 void processMacro(void) {
     macro_t *localexpandedmacro = currentline.current_macro;
-    char macroline[LINEMAX+1];
+    char macroline[LINEBUFFERSIZE];
     char substitutionlist[MACROMAXARGS][MACROARGSUBSTITUTIONLENGTH + 1]; // temporary storage for substitutions during expansion <- needs to remain here for recursive macro processing
     char *macrolineptr, *lastmacrolineptr;
     unsigned int localmacrolinenumber;
@@ -1407,7 +1407,7 @@ void decreasecontentlevel(void) {
 }
 
 void processContent(const char *filename) {
-    char line[LINEMAX+1];      // Temp line buffer, will be deconstructed during streamtoken_t parsing
+    char line[LINEBUFFERSIZE];      // Temp line buffer, will be deconstructed during streamtoken_t parsing
     char iobuffer[INPUT_BUFFERSIZE];
     contentitem_t *ci;
     bool processedmacro = false;
