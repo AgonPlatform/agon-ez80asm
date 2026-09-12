@@ -1,3 +1,4 @@
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,9 +29,53 @@ bool expressionUnknown, resolvingFixups;
 uint24_t fixupmemsize, fixupmempeak;
 static fixup_t *first, *last;
 
+/* Fixups share a lifetime. Keep their addresses stable in chunks and release
+ * the chunks together, rather than inserting every record into libc's free
+ * list. The union and rounded sizes also align records on host builds. */
+#ifndef FIXUP_BLOCK_SIZE
+#define FIXUP_BLOCK_SIZE 2048
+#endif
+typedef struct fixup_block {
+    struct fixup_block *next;
+    union { fixup_t alignment; char bytes[1]; } data;
+} fixup_block_t;
+struct fixup_alignment { char byte; fixup_t record; };
+static fixup_block_t *blocks;
+static char *blockcursor;
+static size_t blockremaining;
+
+static fixup_t *allocateFixup(size_t size) {
+    const size_t alignment = offsetof(struct fixup_alignment, record);
+    const size_t header = offsetof(fixup_block_t, data);
+    fixup_t *result;
+    size = ((size + alignment - 1) / alignment) * alignment;
+    if(size > blockremaining) {
+        size_t capacity = size > FIXUP_BLOCK_SIZE ? size : FIXUP_BLOCK_SIZE;
+        fixup_block_t *block = NULL;
+        /* A mostly empty chunk must not cause an otherwise avoidable OOM.
+         * Try the preferred capacity silently, then use the normal error
+         * handling for an allocation just large enough for this record. */
+        if(capacity > size) block = malloc(header + capacity);
+        if(block) fixupmemsize += header + capacity;
+        else {
+            capacity = size;
+            block = allocateMemory(header + capacity, &fixupmemsize);
+            if(!block) return NULL;
+        }
+        block->next = blocks;
+        blocks = block;
+        blockcursor = block->data.bytes;
+        blockremaining = capacity;
+    }
+    result = (fixup_t *)blockcursor;
+    blockcursor += size;
+    blockremaining -= size;
+    return result;
+}
+
 static fixup_t *capture(const char *expression, label_t *symbol) {
     size_t size = sizeof(fixup_t) + (symbol ? 0 : strlen(currentcontentitem->labelscope)) + strlen(expression) + 1;
-    fixup_t *f = allocateMemory(size, &fixupmemsize);
+    fixup_t *f = allocateFixup(size);
     if(!f) return NULL;
     memset(f, 0, sizeof(*f));
     f->source = currentcontentitem;
@@ -191,11 +236,13 @@ void resolveFixups(void) {
 }
 
 void freeFixups(void) {
-    while(first) {
-        fixup_t *next = first->next;
-        free(first);
-        first = next;
+    while(blocks) {
+        fixup_block_t *next = blocks->next;
+        free(blocks);
+        blocks = next;
     }
-    last = lastFixup = NULL;
+    blockcursor = NULL;
+    blockremaining = 0;
+    first = last = lastFixup = NULL;
     fixupmemsize = 0;
 }
