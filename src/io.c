@@ -103,7 +103,13 @@ void ioPatchValue(uint24_t position, const int32_t *value, uint8_t width) {
 unsigned char *ioReserveInstruction(void) {
     if(listing || errorcount) return NULL;
     if(remaining_dsspaces) ioFlushDSSpaces();
-    if(errorcount || OUTPUT_BUFFERSIZE - windowUsed < 16) return NULL;
+#if OUTPUT_BUFFERSIZE < 16
+    return NULL; // Small test windows always use the ordinary byte emitter.
+#else
+    // Compare against a constant: subtracting windowUsed from the buffer size
+    // promotes the old expression to expensive 32-bit arithmetic on eZ80.
+    if(errorcount || windowUsed > OUTPUT_BUFFERSIZE - 16) return NULL;
+#endif
     return outputBuffer + windowUsed;
 }
 
