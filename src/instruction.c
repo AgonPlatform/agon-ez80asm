@@ -1109,7 +1109,12 @@ instruction_t instructions[] = {
     {"xor",         EZ80, 0, sizeof(operands_xor)/sizeof(operandlist_t), operands_xor,NULL,NULL}
 };
 
-instruction_t * instruction_lookup(const char *name) {
+static instruction_t *common_ld, *common_call, *common_jp;
+
+#if defined(__GNUC__)
+__attribute__((noinline))
+#endif
+static instruction_t *instruction_lookup_slow(const char *name) {
     uint8_t index;
     instruction_t *try;
 
@@ -1122,6 +1127,24 @@ instruction_t * instruction_lookup(const char *name) {
         if(strcasecmp(try->name, name) == 0) return try;
         try = try->next;
     }
+}
+
+// These built-ins cannot be shadowed by macros. Keep their shared table
+// entries so matching, suffix handling and emission retain the ordinary path.
+instruction_t *instruction_lookup(const char *name) {
+    switch(TOLOWER(name[0])) {
+        case 'l':
+            if(TOLOWER(name[1]) == 'd' && name[2] == 0) return common_ld;
+            break;
+        case 'c':
+            if(TOLOWER(name[1]) == 'a' && TOLOWER(name[2]) == 'l' &&
+               TOLOWER(name[3]) == 'l' && name[4] == 0) return common_call;
+            break;
+        case 'j':
+            if(TOLOWER(name[1]) == 'p' && name[2] == 0) return common_jp;
+            break;
+    }
+    return instruction_lookup_slow(name);
 }
 
 void initInstructionTable(void) {
@@ -1151,4 +1174,7 @@ void initInstructionTable(void) {
          }
       }
    }
+    common_ld = instruction_lookup_slow("ld");
+    common_call = instruction_lookup_slow("call");
+    common_jp = instruction_lookup_slow("jp");
 }
