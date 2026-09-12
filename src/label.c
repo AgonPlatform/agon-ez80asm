@@ -40,7 +40,7 @@ static anonymousnode_t *nextAnonymous(void) {
 
 // tables
 label_t* globalLabelTable[GLOBAL_LABEL_TABLE_SIZE]; // hash table
-uint16_t globalLabelCounter;
+uint24_t globalLabelCounter;
 
 void saveGlobalLabelTable(void) {
     int i;
@@ -73,7 +73,7 @@ void saveGlobalLabelTable(void) {
     fclose(fh);
 }
 
-uint16_t getGlobalLabelCount(void) {
+uint24_t getGlobalLabelCount(void) {
     return globalLabelCounter;
 }
 

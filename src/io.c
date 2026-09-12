@@ -257,11 +257,12 @@ int ioPuts(uint8_t fh, const char *s) {
     return number;
 }
 
-bool ioInit(const char *input_filename, const char *output_filename) {
+bool ioInit(const char *input_filename, char *output_filename) {
     create_filebasename(input_filename);
     _prepare_filenames(output_filename);
     windowStart = windowUsed = outputSize = 0;
     windowDirty = false;
+    strcpy(output_filename, filename[FILE_OUTPUT]);
     return _openfiles();
 }
 
@@ -295,7 +296,7 @@ void emit_8bit(uint8_t value) {
     address++;
 }
 
-void emit_16bit(uint16_t value) {
+void emit_16bit(uint24_t value) {
     emit_8bit(value&0xFF);
     emit_8bit((value>>8)&0xFF);
 }

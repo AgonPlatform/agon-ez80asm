@@ -697,9 +697,9 @@ uint8_t strcompound(char *dest, const char *src1, const char *src2) {
 
 // Get the next line from a buffer, pointed to by *ptr
 // The stringpointer *ptr will update after each line
-uint16_t getnextMacroLine(char **ptr, char *dst) {
+uint24_t getnextMacroLine(char **ptr, char *dst) {
     char *_nextline_ptr = *ptr;
-    uint16_t len = 0;
+    uint24_t len = 0;
 
     while(*_nextline_ptr) {
         *dst++ = *_nextline_ptr;
@@ -723,8 +723,8 @@ uint16_t getnextMacroLine(char **ptr, char *dst) {
 #define LINERUNFITS(len, run, endsonnewline) \
     (((len) + (run)) <= (uint24_t)LINEMAX + ((endsonnewline) ? 1 : 0))
 
-uint16_t _readFullBufferedLine(char *dst1, contentitem_t *ci) {
-    uint16_t len = 0;
+uint24_t _readFullBufferedLine(char *dst1, contentitem_t *ci) {
+    uint24_t len = 0;
     char *ptr = ci->readptr;
     uint24_t remaining = ci->size - ci->filepos;
     char *end;
@@ -812,8 +812,8 @@ bool _fillLineBuffer(contentitem_t *ci) {
 }
 
 // Reads a LINE from the buffer and returns its length
-uint16_t _readMinimumBufferedLine(char *dst, contentitem_t *ci) {
-    uint16_t len = 0;
+uint24_t _readMinimumBufferedLine(char *dst, contentitem_t *ci) {
+    uint24_t len = 0;
     char *ptr;
     char *end;
     uint24_t run;
@@ -865,7 +865,7 @@ uint16_t _readMinimumBufferedLine(char *dst, contentitem_t *ci) {
 }
 
 // Get line from contentitem, copy it to dst
-uint16_t getnextContentLine(char *dst, contentitem_t *ci) {
+uint24_t getnextContentLine(char *dst, contentitem_t *ci) {
 
     if(completefilebuffering) {
         return _readFullBufferedLine(dst, ci);
@@ -875,7 +875,7 @@ uint16_t getnextContentLine(char *dst, contentitem_t *ci) {
     }
 }
 
-uint16_t getlastContentLine(char *dst, contentitem_t *ci) {
+uint24_t getlastContentLine(char *dst, contentitem_t *ci) {
     seekContentInput(ci, ci->filepos - ci->lastreadlength); // rewind
     return getnextContentLine(dst, ci);
 }

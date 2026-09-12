@@ -158,8 +158,8 @@ typedef struct contentitem {
     // Items changed during processing
     char*           readptr;
     uint24_t        filepos;                      // The current VIRTUAL position in a buffered file to read from. Needed for fseek purposes        
-    uint16_t        lastreadlength;
-    uint16_t        currentlinenumber;
+    uint24_t        lastreadlength;
+    uint24_t        currentlinenumber;
     char            labelscope[MAXNAMELENGTH+1];
     uint8_t         inConditionalSection;
     unsigned int    bytesinbuffer;                // only used during minimal input buffering
@@ -173,7 +173,7 @@ typedef struct {
     bool            indirect;
     bool            cc;
     uint8_t         cc_index;
-    int16_t         displacement;           // larger, so we can check range
+    int24_t         displacement;           // larger, so we can check range
     bool            displacement_provided;
     bool            immediate_provided;
     int32_t         immediate;
@@ -282,7 +282,7 @@ typedef struct {
     char*           operand2;
     char*           comment;
     bool            suffixpresent;
-    uint16_t size;      // byte size of the assembler-command output in db/defb/dw/defw
+    uint24_t size;      // byte size of the assembler-command output in db/defb/dw/defw
 } tokenline_t;
 
 typedef struct {

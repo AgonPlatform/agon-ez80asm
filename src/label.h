@@ -11,7 +11,7 @@ void writeAnonymousLabel(uint24_t address);
 void *anonymousPosition(void);
 void restoreAnonymousPosition(void *position);
 label_t * findGlobalLabel(const char *name);
-uint16_t getGlobalLabelCount(void);
+uint24_t getGlobalLabelCount(void);
 void saveGlobalLabelTable(void);
 void advanceAnonymousLabel(void);
 void definelabel(uint24_t num);

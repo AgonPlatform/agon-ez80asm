@@ -273,7 +273,7 @@ void parse_operand(char *string, uint8_t len, operand_t *operand) {
                         case '-':
                             operand->reg = R_IX;
                             operand->displacement_provided = true;
-                            operand->displacement = (int16_t)getExpressionValue(ptr, ALLOW_FORWARD);
+                            operand->displacement = (int24_t)getExpressionValue(ptr, ALLOW_FORWARD);
                             operand->fixup = lastFixup;
                             if(*(ptr-1) == '-') {
                                 operand->displacement = -operand->displacement;
@@ -311,7 +311,7 @@ void parse_operand(char *string, uint8_t len, operand_t *operand) {
                         case '-':
                             operand->reg = R_IY;
                             operand->displacement_provided = true;
-                            operand->displacement = (int16_t)getExpressionValue(ptr, ALLOW_FORWARD);
+                            operand->displacement = (int24_t)getExpressionValue(ptr, ALLOW_FORWARD);
                             operand->fixup = lastFixup;
                             if(*(ptr-1) == '-') {
                                 operand->displacement = -operand->displacement;
@@ -1036,7 +1036,7 @@ void handle_asm_definemacro(void) {
     char *macrobuffer = NULL;
     char arglist[MACROMAXARGS][MACROARGLENGTH + 1];
     char *macroname;
-    uint16_t originlinenumber = currentcontentitem->currentlinenumber;
+    uint24_t originlinenumber = currentcontentitem->currentlinenumber;
 
     if(inConditionalSection == CONDITIONSTATE_FALSE) return;
 
@@ -1259,7 +1259,7 @@ void processInstructions(void){
                 // process this mnemonic by applying the instruction list as a filter to the operand-set
                 list = currentline.current_instruction->list;
                 match = false;
-                for(listitem = 0; listitem < currentline.current_instruction->listnumber; listitem++, list++) {
+                for(listitem = currentline.current_instruction->listnumber; listitem > 0; listitem--, list++) {
                     // Cheapest test first, and reject on it. A mnemonic like LD
                     // has around a hundred candidate encodings and the addressing
                     // modes rule out nearly all of them in a couple of byte

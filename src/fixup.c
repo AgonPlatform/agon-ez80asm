@@ -114,7 +114,7 @@ void resolveFixups(void) {
         }
         else value = resolveExpression(f);
         if(errorcount) break;
-        if(f->negative) value = -(int16_t)value;
+        if(f->negative) value = -(int24_t)value;
         if(!f->attached) continue;
         width = f->kind;
 #define FIX_ERROR(...) do { if(f->simple) restoreContext(f); error(__VA_ARGS__); } while(0)
@@ -149,7 +149,7 @@ void resolveFixups(void) {
                 width = 1;
                 break;
             case FIX_DISP:
-                value = (int16_t)value;
+                value = (int24_t)value;
                 if(value < -128 || value > 127) FIX_ERROR(message[ERROR_DISPLACEMENT_RANGE], "%d", value);
                 width = 1;
                 break;

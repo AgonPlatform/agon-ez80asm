@@ -23,8 +23,8 @@ static uint8_t pearson[256] = {
 };
 
 /*
-uint16_t hash(char *key) {
-    uint16_t h;
+uint24_t hash(char *key) {
+    uint24_t h;
     unsigned char h1, h2;
     
     if (*key == 0) return 0;
@@ -36,7 +36,7 @@ uint16_t hash(char *key) {
         key++;
     }
 
-    h = ((uint16_t)h1 << 8)|(uint16_t)h2;
+    h = ((uint24_t)h1 << 8)|(uint24_t)h2;
     return h;
 }
 */

@@ -31,7 +31,7 @@ void initMacros(void) {
 }
 
 // store macro from temporary buffer
-macro_t *storeMacro(const char *name, char *buffer, uint8_t argcount, const char *arguments, uint16_t startlinenumber) {
+macro_t *storeMacro(const char *name, char *buffer, uint8_t argcount, const char *arguments, uint24_t startlinenumber) {
     unsigned int len, i;
     uint8_t index;
     char *ptr;
@@ -176,7 +176,7 @@ char * readMacroBody(contentitem_t *ci) {
     char *body = NULL;
     size_t used = 0, capacity = 0;
     char macroline[LINEMAX+1];
-    uint16_t length;
+    uint24_t length;
     if(listing) listEndLine();
     while((length = getnextContentLine(macroline, ci))) {
         char *tmp = macroline;

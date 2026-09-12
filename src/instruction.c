@@ -1106,7 +1106,7 @@ instruction_t * instruction_lookup(const char *name) {
 }
 
 void initInstructionTable(void) {
-    uint16_t n;
+    uint24_t n;
     uint8_t index;
     instruction_t *try;
 

@@ -6,7 +6,7 @@
 #define strcasecmp _stricmp
 #pragma warning(disable:4996)			// 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead
 #pragma warning(disable:4267)			// conversion from 'size_t' to 'int', possible loss of data
-#pragma warning(disable:4244)			// conversion from '__int64' to 'uint16_t', possible loss of data
+#pragma warning(disable:4244)			// conversion from '__int64' to 'uint24_t', possible loss of data
 #endif
 
 #define VERSION                       2

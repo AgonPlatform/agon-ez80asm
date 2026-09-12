@@ -15,7 +15,7 @@ extern contentitem_t *filecontent[256]; // hash table with all file content item
 FILE *ioOpenfile(const char *name, const char *mode);
 uint24_t ioGetfilesize(FILE *fh);
 void ioWrite(uint8_t fh, const char *s, uint24_t size);
-bool ioInit(const char *input_filename, const char *output_filename); // init - called once at start
+bool ioInit(const char *input_filename, char *output_filename); // init - called once at start
 uint24_t ioOutputPosition(void);
 unsigned char ioReadOutputByte(uint24_t position);
 void ioPatchValue(uint24_t position, const int32_t *value, uint8_t width);
@@ -28,7 +28,7 @@ void io_outputfill(unsigned char c, uint24_t count); // buffered write of a run 
 int  ioPuts(uint8_t fh, const char *s);                  // buffered write of a string / fallback
 void ioFlushDSSpaces(void);
 void emit_8bit(uint8_t value);
-void emit_16bit(uint16_t value);
+void emit_16bit(uint24_t value);
 void emit_24bit(uint24_t value);
 void emit_32bit(uint32_t value);
 void emit_quotedstring(const char *str);
