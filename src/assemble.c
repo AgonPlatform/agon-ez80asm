@@ -449,6 +449,42 @@ void parse_operand(char *string, uint8_t len, operand_t *operand) {
     }
 }
 
+// Skip general operand parsing for plain global unconditional CALL targets.
+static bool parseSimpleCallTarget(char *text, uint8_t length) {
+    char *p = text;
+    label_t *symbol;
+    int32_t value;
+    if(length <= 3 || length > MAXNAMELENGTH || resolvingFixups) return false;
+    // All register/condition names are shorter than four characters. Requiring
+    // a plain identifier also excludes indirect, indexed and AF' syntax.
+    if(!(((uint8_t)(TOLOWER(*p) - 'a') <= 25) || *p == '_')) return false;
+    while(*p) {
+        uint8_t c = (uint8_t)*p++;
+        if(!((uint8_t)(TOLOWER(c) - 'a') <= 25 ||
+             (uint8_t)(c - '0') <= 9 || c == '_')) return false;
+    }
+    if(p - text != length) return false;
+    lastFixup = NULL;
+    expressionUnknown = false;
+    symbol = findGlobalLabel(text);
+    if(symbol && symbol->defined) value = symbol->address;
+    else {
+        value = str2numOrLabel(text, length);
+        if(err_str2num) {
+            if(!symbol) symbol = createUnresolvedLabel(text);
+            if(symbol) lastFixup = captureSymbolFixup(symbol, text);
+            expressionUnknown = true;
+            value = 0;
+        }
+    }
+    operand1.immediate = value;
+    operand1.fixup = lastFixup;
+    operand1.immediate_provided = true;
+    operand1.addressmode = IMM;
+    strcpy(operand1.immediate_name, text);
+    return true;
+}
+
 // FSM to parse each line into separate components, store in gbl currentline variable
 void parseLine(char *src) {
     uint8_t oplength = 0;
@@ -529,7 +565,10 @@ operands:
         // We need this parser to parse up to the .else/.endif statement, or require partly duplicate parser code just for the conditional parsing
         if(inConditionalSection != CONDITIONSTATE_FALSE) {
             if(argcount == 1) {
-                parse_operand(streamtoken.start, oplength, &operand1);
+                if(!(currentline.current_instruction->list == operands_call &&
+                     streamtoken.terminator != ',' &&
+                     parseSimpleCallTarget(streamtoken.start, oplength)))
+                    parse_operand(streamtoken.start, oplength, &operand1);
             }
             else {
                 parse_operand(streamtoken.start, oplength, &operand2);
