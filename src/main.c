@@ -43,8 +43,8 @@ void printHelp(void) {
     printf("\n");
 }
 
-void displayStatistics(void) {
-    int outputsize;
+uint24_t getOutputSize(void) {
+    uint24_t outputsize;
 
     FILE *fh = ioOpenfile(filename[FILE_OUTPUT], "rb");
     if(fh == 0) outputsize = 0;
@@ -52,6 +52,12 @@ void displayStatistics(void) {
         outputsize = ioGetfilesize(fh);
         fclose(fh);
     }
+    return outputsize;
+
+}
+void displayStatistics(void) {
+    uint24_t outputsize = getOutputSize();
+
     printf("Output window        : %6lu\nFixup memory (peak)  : %6d\n", (unsigned long)OUTPUT_BUFFERSIZE, fixupmempeak);
     printf("\nAssembly statistics\n=============================\nLabel memory         : %6d\nLabels               : %6d\n\nMacro memory         : %6d\nMacros               : %6d\n\nInput buffers        : %6d\n-----------------------------\nTotal dynamic memory : %6d\n\nSources parsed       : %6d\nBinfiles read        : %6d\n\nOutput size          : %6d\n\n", labelmemsize, getGlobalLabelCount(), macromemsize, macroCounter, filecontentsize, labelmemsize+macromemsize+filecontentsize, sourcefilecount, binfilecount, outputsize);
 }
@@ -219,7 +225,7 @@ int main(int argc, char *argv[]) {
     ioClose();
 
     if(errorcount) return EXIT_ERROR;
-    else printf("Done in %.2f seconds\n",((double)(end - begin) / CLOCKS_PER_SEC));
+    else printf("Wrote %s, %d bytes\nDone in %.2f seconds\n",outputfilename, getOutputSize(), ((double)(end - begin) / CLOCKS_PER_SEC));
 
     if(exportsymbols) saveGlobalLabelTable();
     if(displaystatistics) displayStatistics();
