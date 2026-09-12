@@ -146,6 +146,7 @@ uint8_t getMnemonicToken(streamtoken_t *token, char *src) {
     uint8_t length = 0;
 
     // skip leading space
+    while(*src == ' ') src++;
     while(ISSPACE(*src)) src++;
     if(*src == 0) {
         memset(token, 0, sizeof(streamtoken_t));
@@ -171,6 +172,7 @@ uint8_t getOperandToken(streamtoken_t *token, char *src) {
     bool inliteral = false;
 
     // skip leading space
+    while(*src == ' ') src++;
     while(ISSPACE(*src)) src++;
     if(*src == 0) {
         memset(token, 0, sizeof(streamtoken_t));
@@ -247,6 +249,7 @@ uint8_t getDefineValueToken(streamtoken_t *token, char *src) {
     bool terminated;
 
     // skip leading space
+    while(*src == ' ') src++;
     while(ISSPACE(*src)) src++;
     if(*src == 0) {
         memset(token, 0, sizeof(streamtoken_t));
