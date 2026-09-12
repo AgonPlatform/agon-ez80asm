@@ -132,3 +132,21 @@ bool isvalidNumber(const char *string) {
     return !err_str2num;
 }
 
+
+/* Symbol-related callers only consume a result when err_str2num is false.
+ * Reject impossible numeric spellings before entering the radix loops. Keep
+ * numeric-looking names on the original parser, including hex/binary suffixes.
+ * The original str2num entry remains unchanged for callers that inspect its
+ * return value even when conversion fails. */
+int32_t str2numOrLabel(const char *string, uint8_t length) {
+    if(length) {
+        uint8_t first = (uint8_t)string[0];
+        uint8_t last = TOLOWER(string[length-1]);
+        if((uint8_t)(first - '0') > 9 && first != '$' && first != '#' &&
+           first != '%' && last != 'h' && last != 'b') {
+            err_str2num = true;
+            return 0;
+        }
+    }
+    return str2num(string, length);
+}

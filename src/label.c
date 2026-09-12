@@ -290,7 +290,7 @@ void definelabel(uint24_t num){
         return;
     }
     len = strlen(currentline.label);
-    str2num(currentline.label, len);
+    str2numOrLabel(currentline.label, len);
     if(!err_str2num) { // labels can't have a valid number format
         error(message[ERROR_INVALIDLABEL],"%s",currentline.label);
         return;

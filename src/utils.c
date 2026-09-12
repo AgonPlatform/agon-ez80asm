@@ -419,7 +419,7 @@ int32_t resolveNumber(char *str, uint8_t length, requiredResult_t requirement) {
     else {
         if(*str == '\'') number = getLiteralValue(str);
         else {
-            number = str2num(str, length?length:strlen(str));
+            number = str2numOrLabel(str, length?length:strlen(str));
             if(err_str2num) {
                 if(requirement == ALLOW_FORWARD && !resolvingFixups) {
                     expressionUnknown = true;
@@ -523,7 +523,7 @@ int32_t getExpressionValue(char *str, requiredResult_t requirement) {
         *end = terminator;
         return value;
     }
-    value = str2num(start, end - start);
+    value = str2numOrLabel(start, end - start);
     if(!err_str2num) { *end = terminator; return value; }
     /* @f/@b and their aliases bind to an anonymous position, not a name. */
     if(requirement == ALLOW_FORWARD && !resolvingFixups &&
