@@ -119,6 +119,7 @@
   <ItemGroup>
     <ClCompile Include="..\assemble.c" />
     <ClCompile Include="..\console.c" />
+    <ClCompile Include="..\ctype_tab.c" />
     <ClCompile Include="..\getopt.c" />
     <ClCompile Include="..\globals.c" />
     <ClCompile Include="..\hash.c" />
@@ -137,7 +138,9 @@
     <ClInclude Include="..\clock.h" />
     <ClInclude Include="..\config.h" />
     <ClInclude Include="..\console.h" />
+    <ClInclude Include="..\ctype_tab.h" />
     <ClInclude Include="..\filestack.h" />
+    <ClInclude Include="..\fixup.h" />
     <ClInclude Include="..\getopt.h" />
     <ClInclude Include="..\globals.h" />
     <ClInclude Include="..\hash.h" />
