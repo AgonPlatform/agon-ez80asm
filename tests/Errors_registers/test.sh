@@ -15,9 +15,15 @@ for FILE in *; do
     if [ -f "$FILE" ]; then
         if [ "$FILE" == "${FILE%.*}.s" ]; then
             test_number=$((test_number+1))
-            ../$ASMBIN $FILE $@ -c -b FF >> ${FILE%.*}.asm.output
-            if [ $? -eq 0 ]; then 
-                echo "Failed to detect error in" \'$FILE\'
+            "../$ASMBIN" "$FILE" "$@" -c -b FF >> ${FILE%.*}.asm.output
+            status=$?
+            if [ "$status" -ne 1 ]; then
+                echo "$FILE: expected assembler error (exit 1), got $status"
+            elif [ -f "${FILE%.*}.bin" ]; then
+                echo "$FILE: failed assembly left an output binary"
+            elif [ -f "${FILE%.*}.error" ] &&
+                 ! grep -F -i -f "${FILE%.*}.error" "${FILE%.*}.asm.output" >/dev/null; then
+                echo "$FILE: expected diagnostic not found"
             else
                 negtest_failed_successfull=$((negtest_failed_successfull+1))
             fi

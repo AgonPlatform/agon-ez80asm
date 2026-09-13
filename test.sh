@@ -21,7 +21,7 @@ if [ -f "bin/ez80asm" ]; then
                 test_number=0
                 ./test.sh $@ > ./test.output
                 testresult=$?
-                if [ $testresult -eq 1 ]; then
+                if [ "$testresult" -ne 0 ] && [ "$testresult" -ne 2 ]; then
                     echo -e " ${RED}FAIL${NOCOLOR}"
                     failed=$((failed+1))
                 else

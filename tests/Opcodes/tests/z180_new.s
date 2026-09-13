@@ -1,4 +1,4 @@
-; Test if all Z180 opcodes pass the CPU filter. No need for a binary test, as these instructions are identical to the EZ80's opcodes
+; Verify Z180 CPU filtering and exact opcode bytes.
 .cpu Z180
     IN0 B,(0)
     IN0 D,(0)

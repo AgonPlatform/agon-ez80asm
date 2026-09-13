@@ -15,15 +15,15 @@ for FILE in *; do
     if [ -f "$FILE" ]; then
         if [ "$FILE" == "${FILE%.*}.s" ]; then
             test_number=$((test_number+1))
-            ../$ASMBIN $FILE $@ -c -b FF >> ${FILE%.*}.asm.output
-            if [ $? -eq 1 ]; then 
+            "../$ASMBIN" "$FILE" "$@" -c -b FF >> ${FILE%.*}.asm.output
+            if [ $? -ne 0 ]; then
                 echo "$FILE ASM ERROR"
             else
                 echo -n "$FILE ASM OK"
                 if [ -f ${FILE%.*}.expect ]; then
                     echo -n " - binary"
                     diff ${FILE%.*}.bin ${FILE%.*}.expect >/dev/null
-                    if [ $? -eq 1 ]; then 
+                    if [ $? -ne 0 ]; then
                         echo " error"
                     else
                         echo " match"

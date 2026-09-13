@@ -35,7 +35,7 @@ def check(source, expected=None, error=None, files=None, flags=()):
         command = [str(assembler), 'test.s', '-c', *options, *flags]
         result = subprocess.run(command, cwd=root, capture_output=True, text=True)
         if error:
-            assert result.returncode != 0, (source, result.stdout)
+            assert result.returncode == 1, (source, result.returncode, result.stdout, result.stderr)
             assert error.lower() in result.stdout.lower(), result.stdout
             assert not (root / 'test.bin').exists()
         else:
