@@ -28,7 +28,7 @@
 #if OUTPUT_BUFFERSIZE < 1
 #error OUTPUT_BUFFERSIZE must be positive
 #endif
-#define INPUT_BUFFERSIZE           4096 // For minimally buffered input files
+#define INPUT_BUFFERSIZE          16384 // For minimally buffered input files
 #define LISTING_OBJECTS_PER_LINE      4 // Listing hex 'objects' between PC / Line number
 #define TOKEN_MAX               LINEMAX // Token maximum length
 #define MAXNAMELENGTH                64 // Maximum name length of labels
