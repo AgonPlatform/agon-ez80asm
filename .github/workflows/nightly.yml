@@ -114,10 +114,6 @@ jobs:
           make
           cp ./release/*.tar.gz .
 
-      - name: Run all tests
-        if: matrix.os == 'ubuntu-latest' || matrix.os == 'self-hosted' || matrix.os == 'macos-latest'
-        run: ./test.sh
-
       - name: Make windows binary
         if: matrix.os == 'windows-2022'
         run: |
@@ -136,6 +132,15 @@ jobs:
         with:
           name: ${{ matrix.artifact_name }}
           path: ${{ matrix.artifact_name }}
+
+      # Final build check: test the native binary in both input-buffering modes.
+      # A failure prevents the dependent release job from running.
+      - name: Run test corpus (normal and minimum memory)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          ./test.sh
+          ./test.sh -m
 
 
   remove_nightly:
