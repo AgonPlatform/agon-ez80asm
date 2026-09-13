@@ -37,6 +37,6 @@ int probeClose(FILE *file) {
 int assemblerMain(int argc, char **argv);
 int main(int argc, char **argv) {
     int result = assemblerMain(argc, argv);
-    printf("PROBE reads=%u writes=%u\n", reads, writes);
+    printf("PROBE reads=%u writes=%u failed=%d\n", reads, writes, failed);
     return result;
 }
